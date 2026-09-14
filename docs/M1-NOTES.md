@@ -44,6 +44,22 @@ con casi avversi, almeno:
 `protected_packages` e/o versionlock sono candidati di hardening da valutare
 insieme agli excludes; non sono ancora parte del contratto M1.
 
+## Compatibility gate: DNF5 su bootc con `/usr` già writable
+
+DNF5 ha una propria semantica di `persistence` sui sistemi bootc. Il default
+`auto` tratta in modo speciale un sistema bootc il cui `/usr` è già writable,
+e la modalità `transient` può gestire un overlay bootc proprio.
+
+Prima di implementare `rk`, sulla versione DNF5 realmente presente nella base
+pinned va verificato che una transazione possa operare direttamente sul nostro
+`/usr` già overlaid senza creare, sostituire o interpretare un secondo overlay.
+Il wrapper dovrà impostare esplicitamente la modalità compatibile risultante dal
+test; non deve dipendere dal default `auto`.
+
+Questo è un gate di integrazione, non un terzo modello di stato: raku-Kris
+continua ad avere un solo upper persistente e non delega a DNF5 il lifecycle
+dell'overlay.
+
 ## Note implementative già decise
 
 - Il first boot deve armare `needs-sync` anche se il factory `packages.list` è
