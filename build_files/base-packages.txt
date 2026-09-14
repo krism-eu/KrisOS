@@ -45,10 +45,11 @@ bluedevil
 mt7xxx-firmware
 
 # AMD APU / Vega-class graphics: only the hardware-specific firmware plus
-# userspace acceleration. Do not install the monolithic linux-firmware bundle.
+# userspace acceleration. Fedora 44's mesa-dri-drivers also provides the
+# mesa-va-drivers capability and the radeonsi VA-API backend.
 amd-gpu-firmware
 amd-ucode-firmware
-mesa-va-drivers
+mesa-dri-drivers
 mesa-vulkan-drivers
 
 # Audio/session plumbing. No JACK/pro-audio or Phonon root in M0.
