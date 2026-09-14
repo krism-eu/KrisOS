@@ -18,8 +18,12 @@ M0 valida una sola cosa: il percorso di boot dell'overlay.
 - Se mount o cleanup falliscono, il boot continua sulla `/usr` immutabile.
 - Nessun package wrapper e nessun sync RPM in M0.
 
-Il backend bootc composefs non fa parte di M0. Il codice non deve fingere di
-supportarlo: il rilevamento corrente richiede il parametro kernel `ostree=`.
+Il backend bootc composefs non fa parte di M0. La presenza delle librerie
+composefs nell'immagine non abilita da sola quel backend; ciò che conta è il
+layout del sistema effettivamente installato. Il codice M0 richiede il parametro
+kernel `ostree=` nel formato documentato sotto e il relativo persistent `/var`.
+Se il primo boot non soddisfa questo contratto, il test deve fallire chiaramente
+invece di adattare implicitamente l'hook a un secondo backend.
 
 ## Stato persistente
 
@@ -58,15 +62,19 @@ OSNAME/BOOTCSUM/TREESERIAL
 Questo evita wipe inutili quando cambia solo la generazione dei bootlink, ma
 invalida l'upper quando cambia il booted deployment.
 
-## Cambio deployment
+## Cambio deployment e first boot
 
-Un cambio di identità produce sempre la stessa reazione:
+Un'identità assente o diversa produce sempre la stessa reazione:
 
 1. l'initrd tenta di eliminare completamente `upper/` e `work/`;
 2. se il wipe fallisce, **non monta l'overlay** e continua sulla base;
 3. se il wipe riesce, ricrea `upper/` e `work/` e crea `needs-sync`;
 4. monta un overlay vuoto sulla nuova `/usr`;
 5. registra la nuova identità solo dopo un mount riuscito.
+
+`needs-sync` viene armato anche al primo boot. In M0 il factory `packages.list`
+è vuoto e il marker è innocuo; in M1 evita un caso speciale se un'immagine
+derivata contiene richieste pre-registrate.
 
 In M1 il servizio userspace userà `packages.list` per ripopolare l'overlay.
 Non esiste merge della rpmdb e non esiste una split-rpmdb proprietaria.
@@ -87,6 +95,8 @@ Non esiste merge della rpmdb e non esiste una split-rpmdb proprietaria.
    Il meccanismo DNF5 concreto viene validato in M1 prima di essere congelato.
 6. **SELinux resta enforcing.** Nessun `restorecon -R` sul backing path
    `upper/`: i payload vengono creati attraverso il pathname logico `/usr`.
+   M1 può eseguire un relabel mirato dei soli file di stato sotto
+   `/var/lib/raku-kris` creati nell'initrd.
 7. **Niente RakuOS a runtime o build-time.** Il motivo è ridurre compatibilità,
    superficie di cambiamento e manutenzione, non aggirare una licenza.
 8. **L'initrd fa solo filesystem.** Niente RPM, rete, JSON/TOML, sync o policy
@@ -105,19 +115,22 @@ Queste omissioni sono intenzionali: M0 deve dimostrare prima il mount lifecycle.
 
 ## M1 — decisioni da chiudere con test
 
-Prima di implementare `rk add/rm` vanno congelate quattro regole:
+I due problemi architetturali che devono essere risolti prima di congelare `rk`
+sono documentati in [`docs/M1-NOTES.md`](docs/M1-NOTES.md):
 
-1. **Enforcement additive-only.** La base image genera
-   `/usr/share/raku-kris/base-packages.txt`; va verificato con test reali che la
-   strategia DNF5 scelta renda impossibile sostituire un pacchetto base senza
-   nascondere al solver le dipendenze già soddisfatte dalla base.
-2. **Effetti fuori da `/usr`.** Decidere quali payload/config/scriptlet in
-   `/etc` e `/var` sono ammessi e quale semantica di cleanup promette `rk rm`.
-3. **Remove.** Preferenza iniziale: eseguire una vera transazione di remove
-   mentre l'overlay è montato e aggiornare `packages.list` solo dopo successo;
-   niente pseudo-autoremove proprietario.
-4. **Rebuild.** Dopo cambio deployment il sync reinstalla solo le richieste
-   esplicite; le dipendenze vengono risolte nuovamente contro la nuova base.
+1. **stato persistente fuori da `/usr`** prodotto dal payload o dagli scriptlet
+   RPM e relativa semantica di cleanup/rebuild;
+2. **enforcement reale di additive-only**, inclusi hard dependency, Obsoletes,
+   Conflicts, file conflict, RPM locali e NEVRA esplicite.
+
+Le scelte implementative subordinate restano volutamente semplici:
+
+- `rk rm` usa una vera transazione RPM/DNF5 e aggiorna `packages.list` solo dopo
+  successo; niente pseudo-autoremove proprietario;
+- dopo cambio deployment il sync reinstalla solo le richieste esplicite e le
+  dipendenze vengono risolte nuovamente contro la nuova base;
+- i file di stato creati nell'initrd possono essere sottoposti a `restorecon`
+  mirato dopo switch-root, mai al backing tree `upper/`.
 
 ## Milestone
 
