@@ -111,6 +111,7 @@ RUN set -eux; \
       kcalc \
       kio-admin \
       kinfocenter \
+      power-profiles-daemon \
       plasma-print-manager \
       cups \
       cups-filters \
@@ -210,6 +211,7 @@ RUN set -eux; \
 RUN set -eux; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
+    systemctl enable systemd-timesyncd.service; \
     systemctl disable ufw.service || true; \
     systemctl set-default graphical.target
 
@@ -240,6 +242,7 @@ RUN set -eux; \
     test -x /usr/bin/okular; \
     test -x /usr/bin/kcalc; \
     test -x /usr/bin/kinfocenter; \
+    test -x /usr/bin/powerprofilesctl; \
     test -x /usr/bin/os-prober; \
     test -x /usr/bin/ntfsresize; \
     test -x /usr/lib/dracut/modules.d/90raku-kris/module-setup.sh; \
@@ -263,6 +266,7 @@ RUN set -eux; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
+    systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
     if systemctl is-enabled ufw.service >/dev/null 2>&1; then \
       echo 'ufw.service must not be enabled' >&2; \
       exit 1; \
