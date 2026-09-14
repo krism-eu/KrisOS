@@ -48,13 +48,15 @@ RUN set -eux; \
 
 # bootc images carry initramfs next to each kernel under /usr/lib/modules.
 # /root is normally a symlink to /var/roothome; materialize it only while
-# dracut runs, then restore the original link.
+# dracut runs, then restore the original link. cleanup_root is deliberately
+# total: a no-op cleanup must still return success under `set -e`.
 RUN set -eux; \
     root_was_symlink=0; root_target=''; \
     cleanup_root() { \
       if [ "$root_was_symlink" -eq 1 ] && [ ! -L /root ]; then \
         rm -rf /root; ln -s "$root_target" /root; \
       fi; \
+      return 0; \
     }; \
     trap cleanup_root EXIT; \
     if [ -L /root ]; then \
