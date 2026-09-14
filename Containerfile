@@ -48,17 +48,10 @@ RUN set -eux; \
 
 # bootc images carry initramfs next to each kernel under /usr/lib/modules.
 # /root is normally a symlink to /var/roothome; materialize it only while
-# dracut runs, then restore the original link. cleanup_root is deliberately
-# total: a no-op cleanup must still return success under `set -e`.
+# dracut runs, then restore it linearly. If dracut fails the build fails too,
+# so no trap/helper is needed for an intermediate layer that will be discarded.
 RUN set -eux; \
     root_was_symlink=0; root_target=''; \
-    cleanup_root() { \
-      if [ "$root_was_symlink" -eq 1 ] && [ ! -L /root ]; then \
-        rm -rf /root; ln -s "$root_target" /root; \
-      fi; \
-      return 0; \
-    }; \
-    trap cleanup_root EXIT; \
     if [ -L /root ]; then \
       root_was_symlink=1; root_target="$(readlink /root)"; \
       rm -f /root; install -d -m 0700 /root; \
@@ -74,7 +67,9 @@ RUN set -eux; \
       lsinitrd "$moddir/initramfs.img" | grep -q '90raku-kris'; \
     done; \
     [ "$found_kernel" -eq 1 ]; \
-    cleanup_root; trap - EXIT; \
+    if [ "$root_was_symlink" -eq 1 ]; then \
+      rm -rf /root; ln -s "$root_target" /root; \
+    fi; \
     rm -f /boot/initramfs-*.img; \
     test -z "$(find /boot -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null)"
 
