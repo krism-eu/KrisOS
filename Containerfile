@@ -36,21 +36,28 @@ RUN set -eux; \
           install; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     if rpm -q glibc-all-langpacks >/dev/null 2>&1; then \
-      ! grep -Fxq glibc-all-langpacks /tmp/fedora-base-names.txt; \
+      if grep -Fxq glibc-all-langpacks /tmp/fedora-base-names.txt; then \
+        echo 'glibc-all-langpacks is Fedora-base-owned; refusing image-side removal' >&2; \
+        exit 1; \
+      fi; \
       rpm -e glibc-all-langpacks; \
     fi; \
+    assert_absent() { \
+      if rpm -q "$1" >/dev/null 2>&1; then \
+        echo "forbidden package installed: $1" >&2; \
+        exit 1; \
+      fi; \
+    }; \
     for pkg in \
       glibc-all-langpacks \
       pipewire-jack-audio-connection-kit \
       pipewire-jack-audio-connection-kit-libs \
-      phonon-qt6 \
-      phonon-common \
       sane-backends \
       sane-backends-libs \
       sane-airscan \
       libsane-airscan; \
     do \
-      ! rpm -q "$pkg" >/dev/null 2>&1; \
+      assert_absent "$pkg"; \
     done; \
     rpm -q \
       NetworkManager-wifi \
@@ -90,7 +97,7 @@ RUN set -eux; \
       zram-generator-defaults; \
     rpm -q --whatprovides mesa-va-drivers; \
     test -e /usr/lib64/dri/radeonsi_drv_video.so; \
-    ! rpm -q linux-firmware >/dev/null 2>&1; \
+    assert_absent linux-firmware; \
     dnf5 check --dependencies; \
     : > /tmp/fedora-base-nevra.after; \
     while IFS= read -r pkg; do \
@@ -163,6 +170,12 @@ RUN set -eux; \
 # Static image invariants. Runtime overlay persistence is intentionally left to
 # the M0 VM matrix; a green container build cannot prove it.
 RUN set -eux; \
+    assert_absent() { \
+      if rpm -q "$1" >/dev/null 2>&1; then \
+        echo "forbidden package installed: $1" >&2; \
+        exit 1; \
+      fi; \
+    }; \
     test -x /usr/bin/bootc; \
     test -x /usr/bin/ostree; \
     test -x /usr/bin/dnf5; \
@@ -192,9 +205,12 @@ RUN set -eux; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
-    ! systemctl is-enabled ufw.service >/dev/null 2>&1; \
+    if systemctl is-enabled ufw.service >/dev/null 2>&1; then \
+      echo 'ufw.service must not be enabled' >&2; \
+      exit 1; \
+    fi; \
     test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
     test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
-    ! rpm -q glibc-all-langpacks >/dev/null 2>&1; \
-    ! rpm -q linux-firmware >/dev/null 2>&1; \
+    assert_absent glibc-all-langpacks; \
+    assert_absent linux-firmware; \
     bootc container lint
