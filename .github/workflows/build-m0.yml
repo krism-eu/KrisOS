@@ -37,7 +37,13 @@ jobs:
           bash -n dracut/modules.d/90raku-kris/raku-kris-overlay.sh
           bash -n tests/boot-check.sh
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
-          ! grep -R '/sysroot/ostree/deploy' dracut/modules.d/90raku-kris
+          grep -Fq 'persistent_var="$sysroot/ostree/deploy/$stateroot/var"' \
+            dracut/modules.d/90raku-kris/raku-kris-overlay.sh
+          if grep -Fq 'state="$sysroot/var/lib/raku-kris"' \
+            dracut/modules.d/90raku-kris/raku-kris-overlay.sh; then
+            echo 'overlay state must not use read-only /sysroot/var' >&2
+            exit 1
+          fi
 
       - name: Install Podman
         shell: bash
