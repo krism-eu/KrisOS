@@ -1,0 +1,63 @@
+# Fedora 44 Minimal + bootc runtime
+bootc
+bootupd
+composefs
+composefs-libs
+dracut
+ostree
+systemd
+flatpak
+
+# Minimal Plasma shell/session + KWin
+plasma-workspace
+plasma-workspace-common
+plasma-workspace-libs
+plasma-desktop
+plasma-systemsettings
+kwin
+kwin-common
+kwin-libs
+kwayland
+kscreen
+kscreenlocker
+
+# Plasma Login Manager runtime
+plasma-login-manager
+kcm-plasmalogin
+kde-settings-plasmalogin
+kde-settings-plasma
+plasma-keyboard
+xcb-util-cursor
+
+# Core desktop integration
+plasma-nm
+plasma-pa
+plasma-integration
+kde-cli-tools
+polkit-kde
+polkit-qt6-1
+powerdevil
+kglobalacceld
+ksystemstats
+xdg-desktop-portal
+xdg-desktop-portal-kde
+xdg-user-dirs
+
+# Audio/session plumbing
+pipewire
+pipewire-alsa
+pipewire-pulseaudio
+pipewire-jack-audio-connection-kit
+wireplumber
+phonon-qt6
+
+# Visual baseline: icons/cursor only. Keep fonts to hard dependencies for M0.
+breeze-icon-theme
+kf6-breeze-icons
+breeze-cursor-theme
+
+# Locales: English + Italian only; never glibc-all-langpacks.
+glibc-langpack-en
+glibc-langpack-it
+langpacks-core-en
+langpacks-core-it
