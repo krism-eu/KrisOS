@@ -64,6 +64,16 @@ RUN set -eux; \
       mesa-dri-drivers \
       mesa-vulkan-drivers \
       udisks2 \
+      dolphin \
+      konsole \
+      kate \
+      spectacle \
+      ark \
+      gwenview \
+      okular \
+      kcalc \
+      kio-admin \
+      kinfocenter \
       plasma-print-manager \
       cups \
       cups-filters \
@@ -72,6 +82,10 @@ RUN set -eux; \
       firewalld \
       iproute \
       tar \
+      bash-completion \
+      ntfs-3g \
+      ntfsprogs \
+      os-prober \
       zram-generator \
       zram-generator-defaults; \
     rpm -q --whatprovides mesa-va-drivers; \
@@ -152,6 +166,17 @@ RUN set -eux; \
     test -x /usr/bin/bootc; \
     test -x /usr/bin/ostree; \
     test -x /usr/bin/dnf5; \
+    test -x /usr/bin/dolphin; \
+    test -x /usr/bin/konsole; \
+    test -x /usr/bin/kate; \
+    test -x /usr/bin/spectacle; \
+    test -x /usr/bin/ark; \
+    test -x /usr/bin/gwenview; \
+    test -x /usr/bin/okular; \
+    test -x /usr/bin/kcalc; \
+    test -x /usr/bin/kinfocenter; \
+    test -x /usr/bin/os-prober; \
+    test -x /usr/bin/ntfsresize; \
     test -x /usr/lib/dracut/modules.d/90raku-kris/module-setup.sh; \
     test -x /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.sh; \
     test -e /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.service; \
