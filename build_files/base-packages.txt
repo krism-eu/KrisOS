@@ -58,11 +58,12 @@ pipewire-alsa
 pipewire-pulseaudio
 wireplumber
 
-# Printing + scanning. plasma-print-manager pulls the CUPS daemon/UI closure;
-# sane-backends pulls the standard SANE runtime including AirScan support.
+# Printing. Keep Fedora's complete CUPS 2.x filter closure because it is used
+# for both classic and driverless raster/PCLm conversion. Scanning is provided
+# separately by the chosen Epson application, not by a generic immutable SANE
+# stack.
 plasma-print-manager
 cups-filters
-sane-backends
 
 # Local desktop/system utilities.
 iproute
