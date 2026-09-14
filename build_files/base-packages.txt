@@ -1,11 +1,8 @@
-# Fedora 44 Minimal + bootc runtime
-bootc
-bootupd
-composefs
-composefs-libs
-dracut
-ostree
-systemd
+# raku-Kris immutable package delta.
+# Packages already owned by the pinned Fedora bootc base are intentionally not
+# repeated here; the Containerfile protects that base from DNF transactions.
+
+# Application model
 flatpak
 
 # Minimal Plasma shell/session + KWin
