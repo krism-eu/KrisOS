@@ -25,21 +25,27 @@ update e rollback.
 
 ## 2. Enforcement reale di additive-only
 
-`/usr/share/raku-kris/base-packages.txt` elenca i pacchetti appartenenti
-all'immagine immutabile. M1 deve rendere impossibile a una transazione overlay
-di aggiornare, fare downgrade, rimuovere o sostituire semanticamente quei
-pacchetti.
+`/usr/share/raku-kris/owned-packages.txt` elenca per nome tutti i pacchetti
+appartenenti all'immagine immutabile finale: sia quelli già presenti nella base
+Fedora pinned, sia il delta installato da raku-Kris durante la build. Il nome è
+intenzionale: M1 deve proteggere l'intera immagine immutabile, non solo la base
+Fedora, da update, downgrade, rimozioni o sostituzioni attraverso l'overlay.
+
+Le pseudo-entry RPM `gpg-pubkey` sono escluse da questo snapshot. La fiducia in
+repository e chiavi è una policy separata che M1 deve definire esplicitamente;
+una nuova chiave importata non deve essere interpretata come un nuovo pacchetto
+utente o come una violazione dell'ownership immutabile.
 
 DNF5 documenta `excludepkgs` come filtro che rende i pacchetti disponibili
 invisibili alle transazioni. Questo va comunque validato sulla nostra immagine
 con casi avversi, almeno:
 
-- dipendenza hard che richiede una versione più nuova di un pacchetto base;
-- `Obsoletes:` / `Conflicts:` verso un pacchetto base;
+- dipendenza hard che richiede una versione più nuova di un pacchetto owned;
+- `Obsoletes:` / `Conflicts:` verso un pacchetto owned;
 - pacchetto con nome diverso che fornisce la stessa capability;
-- file conflict con un file già posseduto dalla base;
+- file conflict con un file già posseduto dall'immagine immutabile;
 - RPM locale passato direttamente come file;
-- downgrade o installazione di una NEVRA esplicita di un pacchetto base.
+- downgrade o installazione di una NEVRA esplicita di un pacchetto owned.
 
 `protected_packages` e/o versionlock sono candidati di hardening da valutare
 insieme agli excludes; non sono ancora parte del contratto M1.
