@@ -209,6 +209,7 @@ RUN set -eux; \
     test -z "$(find /boot -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null)"
 
 RUN set -eux; \
+    printf '%s\n' 'LANG=it_IT.UTF-8' > /etc/locale.conf; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
     systemctl enable systemd-timesyncd.service; \
@@ -260,6 +261,7 @@ RUN set -eux; \
       /usr/lib/tmpfiles.d/raku-kris.conf; \
     test -L /root; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
+    grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     rpm -q xcb-util-cursor; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
