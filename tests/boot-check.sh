@@ -20,7 +20,7 @@ check "overlay upper present"    "test -d /var/lib/raku-kris/upper"
 check "overlay work present"     "test -d /var/lib/raku-kris/work"
 check "package intent seed"      "test -e /var/lib/raku-kris/packages.list"
 check "hook ran (journal)"       "journalctl -b | grep -q raku-kris-overlay"
-check "hook accepted M0 scope"   "! journalctl -b | grep -Eq 'raku-kris-overlay: (no ostree= parameter|unsupported ostree= path|prepared persistent /var not found)'"
+check "hook accepted M0 scope"   "! journalctl -b | grep -Eq 'raku-kris-overlay: .*— skipping'"
 check "SELinux enforcing"        "getenforce | grep -qx Enforcing"
 check "login manager active"     "systemctl is-active plasmalogin.service | grep -qx active"
 
