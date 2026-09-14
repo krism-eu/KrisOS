@@ -21,19 +21,49 @@ LABEL ostree.bootable="1"
 # must move forward instead.
 COPY build_files/base-packages.txt /tmp/base-packages.txt
 RUN set -eux; \
-    rpm -qa --qf '%{NAME}\n' | sort -u > /tmp/fedora-base-names.txt; \
+    rpm -qa --qf '%{NAME}\n' > /tmp/fedora-base-names.raw; \
+    sed -e '/^gpg-pubkey$/d' \
+      /tmp/fedora-base-names.raw > /tmp/fedora-base-names.filtered; \
+    LC_ALL=C sort -u \
+      /tmp/fedora-base-names.filtered > /tmp/fedora-base-names.txt; \
+    test -s /tmp/fedora-base-names.txt; \
+    for pkg in bootc bootupd dracut ostree systemd rpm dnf5 kernel-core; do \
+      if ! grep -Fxq "$pkg" /tmp/fedora-base-names.txt; then \
+        echo "Pinned Fedora base sanity check failed: missing $pkg" >&2; \
+        exit 1; \
+      fi; \
+    done; \
+    sed \
+      -e 's/\r$//' \
+      -e 's/[[:space:]]*#.*$//' \
+      -e 's/^[[:space:]]*//' \
+      -e 's/[[:space:]]*$//' \
+      -e '/^$/d' \
+      /tmp/base-packages.txt > /tmp/raku-delta-names.raw; \
+    LC_ALL=C sort -u \
+      /tmp/raku-delta-names.raw > /tmp/raku-delta-names.txt; \
+    LC_ALL=C comm -12 \
+      /tmp/fedora-base-names.txt \
+      /tmp/raku-delta-names.txt \
+      > /tmp/raku-base-collisions.txt; \
+    if [ -s /tmp/raku-base-collisions.txt ]; then \
+      echo 'raku-Kris package delta collides with Fedora-owned base packages:' >&2; \
+      cat /tmp/raku-base-collisions.txt >&2; \
+      echo 'Remove these names from build_files/base-packages.txt.' >&2; \
+      exit 1; \
+    fi; \
     : > /tmp/fedora-base-nevra.before; \
     while IFS= read -r pkg; do \
       rpm -q --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' "$pkg" \
         >> /tmp/fedora-base-nevra.before; \
     done < /tmp/fedora-base-names.txt; \
-    sort -u -o /tmp/fedora-base-nevra.before /tmp/fedora-base-nevra.before; \
+    LC_ALL=C sort -u -o \
+      /tmp/fedora-base-nevra.before /tmp/fedora-base-nevra.before; \
     base_excludes="$(paste -sd, /tmp/fedora-base-names.txt)"; \
-    grep -vE '^[[:space:]]*(#|$)' /tmp/base-packages.txt \
-      | xargs dnf5 -y \
-          --setopt=install_weak_deps=False \
-          --setopt="excludepkgs=${base_excludes}" \
-          install; \
+    xargs -r dnf5 -y \
+      --setopt=install_weak_deps=False \
+      --setopt="excludepkgs=${base_excludes}" \
+      install < /tmp/raku-delta-names.txt; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     if rpm -q glibc-all-langpacks >/dev/null 2>&1; then \
       if grep -Fxq glibc-all-langpacks /tmp/fedora-base-names.txt; then \
@@ -104,12 +134,18 @@ RUN set -eux; \
       rpm -q --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' "$pkg" \
         >> /tmp/fedora-base-nevra.after; \
     done < /tmp/fedora-base-names.txt; \
-    sort -u -o /tmp/fedora-base-nevra.after /tmp/fedora-base-nevra.after; \
+    LC_ALL=C sort -u -o \
+      /tmp/fedora-base-nevra.after /tmp/fedora-base-nevra.after; \
     diff -u /tmp/fedora-base-nevra.before /tmp/fedora-base-nevra.after; \
     dnf5 clean all; \
     rm -f \
       /tmp/base-packages.txt \
+      /tmp/fedora-base-names.raw \
+      /tmp/fedora-base-names.filtered \
       /tmp/fedora-base-names.txt \
+      /tmp/raku-delta-names.raw \
+      /tmp/raku-delta-names.txt \
+      /tmp/raku-base-collisions.txt \
       /tmp/fedora-base-nevra.before \
       /tmp/fedora-base-nevra.after
 
@@ -123,11 +159,13 @@ RUN chmod 0755 \
 # additive-only policy after its DNF5 semantics are verified by tests.
 RUN set -eux; \
     install -d -m 0755 /usr/share/raku-kris; \
-    rpm -qa --qf '%{NAME}\n' | sort -u > /usr/share/raku-kris/base-packages.txt; \
+    rpm -qa --qf '%{NAME}\n' | LC_ALL=C sort -u > /usr/share/raku-kris/base-packages.txt; \
     test -s /usr/share/raku-kris/base-packages.txt
 
-# Factory state. bootc's root.transient handling copies /usr/share/factory/var
-# into persistent /var via systemd-tmpfiles semantics.
+# Factory state plus an explicit tmpfiles contract. The C rule seeds the empty
+# M1 package-intent file only when it is missing; existing persistent state is
+# never overwritten by a reboot or image update.
+COPY build_files/tmpfiles-raku-kris.conf /usr/lib/tmpfiles.d/raku-kris.conf
 RUN set -eux; \
     install -d -m 0755 /usr/share/factory/var/lib/raku-kris; \
     : > /usr/share/factory/var/lib/raku-kris/packages.list
@@ -197,6 +235,11 @@ RUN set -eux; \
     test -s /usr/share/raku-kris/base-packages.txt; \
     test -e /usr/share/factory/var/lib/raku-kris/packages.list; \
     test ! -s /usr/share/factory/var/lib/raku-kris/packages.list; \
+    test -f /usr/lib/tmpfiles.d/raku-kris.conf; \
+    grep -Fxq 'd /var/lib/raku-kris 0755 root root -' \
+      /usr/lib/tmpfiles.d/raku-kris.conf; \
+    grep -Fxq 'C /var/lib/raku-kris/packages.list 0644 root root - /usr/share/factory/var/lib/raku-kris/packages.list' \
+      /usr/lib/tmpfiles.d/raku-kris.conf; \
     test -L /root; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
