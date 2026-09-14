@@ -29,6 +29,7 @@ plasma-integration
 kde-cli-tools
 polkit-kde
 powerdevil
+power-profiles-daemon
 kglobalacceld
 ksystemstats
 xdg-desktop-portal
