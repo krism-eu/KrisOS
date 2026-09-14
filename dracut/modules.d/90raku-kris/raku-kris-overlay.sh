@@ -156,9 +156,14 @@ if [ "$changed" -eq 1 ]; then
     fi
 fi
 
+# The upper/work directories live below /var and therefore carry var_lib_t.
+# Without an explicit root context, mounting that overlay directly on /usr can
+# make the overlay mount root inherit the wrong SELinux label and break early
+# userspace services. Preserve the target mountpoint label while keeping lower
+# inode labels intact.
 log "mounting persistent overlay on /sysroot/usr"
 if ! mount -t overlay overlay \
-        -o "lowerdir=$sysroot/usr,upperdir=$upper,workdir=$work" \
+        -o "lowerdir=$sysroot/usr,upperdir=$upper,workdir=$work,rootcontext=@target" \
         "$sysroot/usr"; then
     log "WARNING: overlay mount failed — continuing on base /usr (degraded)"
     exit 0
