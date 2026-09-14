@@ -68,6 +68,23 @@ esac
 deployment_id="$stateroot/$bootcsum/$treeserial"
 
 sysroot=/sysroot
+
+# A manual/retriggered invocation must be a no-op once /sysroot/usr is already
+# overlaid. Check this before touching upper/work so a live mount can never be
+# invalidated by the deployment-change cleanup path.
+already_mounted=0
+while read -r _source target fstype _rest; do
+    if [ "$target" = "$sysroot/usr" ] && [ "$fstype" = "overlay" ]; then
+        already_mounted=1
+        break
+    fi
+done < /proc/mounts
+
+if [ "$already_mounted" -eq 1 ]; then
+    log "already mounted"
+    exit 0
+fi
+
 var="$sysroot/ostree/deploy/$stateroot/var"
 if [ ! -d "$var" ]; then
     log "persistent var not found for stateroot '$stateroot' — skipping"
@@ -108,7 +125,9 @@ fi
 changed=0
 if [ -z "$saved_id" ]; then
     # Unknown provenance must never be mounted. On a true first boot this only
-    # removes empty directories.
+    # removes empty directories. Arm needs-sync too: M1 may seed packages.list
+    # in a derived image and must not need a special first-boot path.
+    changed=1
     if ! wipe_cache "deployment identity not initialized"; then
         exit 0
     fi
@@ -129,20 +148,6 @@ if [ "$changed" -eq 1 ]; then
         log "WARNING: cannot create needs-sync marker — continuing on base /usr"
         exit 0
     fi
-fi
-
-# Avoid a duplicate mount if the unit is retriggered.
-already_mounted=0
-while read -r _source target fstype _rest; do
-    if [ "$target" = "$sysroot/usr" ] && [ "$fstype" = "overlay" ]; then
-        already_mounted=1
-        break
-    fi
-done < /proc/mounts
-
-if [ "$already_mounted" -eq 1 ]; then
-    log "already mounted"
-    exit 0
 fi
 
 log "mounting persistent overlay on /sysroot/usr"
