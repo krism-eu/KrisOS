@@ -34,9 +34,21 @@ RUN set -eux; \
           --setopt=install_weak_deps=False \
           --setopt="excludepkgs=${base_excludes}" \
           install; \
+    rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     if rpm -q glibc-all-langpacks >/dev/null 2>&1; then \
-      dnf5 -y remove glibc-all-langpacks; \
+      ! grep -Fxq glibc-all-langpacks /tmp/fedora-base-names.txt; \
+      rpm -e glibc-all-langpacks; \
     fi; \
+    for pkg in \
+      glibc-all-langpacks \
+      pipewire-jack-audio-connection-kit \
+      pipewire-jack-audio-connection-kit-libs \
+      phonon-qt6 \
+      phonon-common; \
+    do \
+      ! rpm -q "$pkg" >/dev/null 2>&1; \
+    done; \
+    dnf5 check --dependencies; \
     : > /tmp/fedora-base-nevra.after; \
     while IFS= read -r pkg; do \
       rpm -q --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' "$pkg" \
@@ -49,8 +61,7 @@ RUN set -eux; \
       /tmp/base-packages.txt \
       /tmp/fedora-base-names.txt \
       /tmp/fedora-base-nevra.before \
-      /tmp/fedora-base-nevra.after; \
-    ! rpm -q glibc-all-langpacks >/dev/null 2>&1
+      /tmp/fedora-base-nevra.after
 
 # Overlay infrastructure.
 COPY dracut/modules.d/90raku-kris /usr/lib/dracut/modules.d/90raku-kris/
@@ -123,5 +134,14 @@ RUN set -eux; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
     test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
     test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
-    ! rpm -q glibc-all-langpacks >/dev/null 2>&1; \
+    for pkg in \
+      glibc-all-langpacks \
+      pipewire-jack-audio-connection-kit \
+      pipewire-jack-audio-connection-kit-libs \
+      phonon-qt6 \
+      phonon-common; \
+    do \
+      ! rpm -q "$pkg" >/dev/null 2>&1; \
+    done; \
+    dnf5 check --dependencies; \
     bootc container lint
