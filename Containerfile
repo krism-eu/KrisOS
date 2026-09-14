@@ -165,7 +165,10 @@ RUN set -eux; \
       | LC_ALL=C sort -u \
       > /usr/share/raku-kris/owned-packages.txt; \
     test -s /usr/share/raku-kris/owned-packages.txt; \
-    ! grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt
+    if grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt; then \
+      echo 'gpg-pubkey must not appear in immutable ownership snapshot' >&2; \
+      exit 1; \
+    fi
 
 # Factory state plus an explicit tmpfiles contract. The C rule seeds the empty
 # M1 package-intent file only when it is missing; existing persistent state is
@@ -219,6 +222,12 @@ RUN set -eux; \
         exit 1; \
       fi; \
     }; \
+    assert_not_in_file() { \
+      if grep -Fxq "$1" "$2"; then \
+        echo "forbidden entry in $2: $1" >&2; \
+        exit 1; \
+      fi; \
+    }; \
     test -x /usr/bin/bootc; \
     test -x /usr/bin/ostree; \
     test -x /usr/bin/dnf5; \
@@ -238,7 +247,7 @@ RUN set -eux; \
     test -e /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
     test -s /usr/share/raku-kris/owned-packages.txt; \
-    ! grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt; \
+    assert_not_in_file gpg-pubkey /usr/share/raku-kris/owned-packages.txt; \
     test -e /usr/share/factory/var/lib/raku-kris/packages.list; \
     test ! -s /usr/share/factory/var/lib/raku-kris/packages.list; \
     test -f /usr/lib/tmpfiles.d/raku-kris.conf; \
