@@ -155,12 +155,17 @@ RUN chmod 0755 \
     /usr/lib/dracut/modules.d/90raku-kris/module-setup.sh \
     /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.sh
 
-# Snapshot the immutable package names. M1 will use this as input to the
-# additive-only policy after its DNF5 semantics are verified by tests.
+# Snapshot every immutable package name owned by the final image: pinned Fedora
+# base plus the raku-Kris delta. RPM key pseudo-packages are deliberately not
+# package-ownership policy; M1 handles repository/key trust separately.
 RUN set -eux; \
     install -d -m 0755 /usr/share/raku-kris; \
-    rpm -qa --qf '%{NAME}\n' | LC_ALL=C sort -u > /usr/share/raku-kris/base-packages.txt; \
-    test -s /usr/share/raku-kris/base-packages.txt
+    rpm -qa --qf '%{NAME}\n' \
+      | sed -e '/^gpg-pubkey$/d' \
+      | LC_ALL=C sort -u \
+      > /usr/share/raku-kris/owned-packages.txt; \
+    test -s /usr/share/raku-kris/owned-packages.txt; \
+    ! grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt
 
 # Factory state plus an explicit tmpfiles contract. The C rule seeds the empty
 # M1 package-intent file only when it is missing; existing persistent state is
@@ -232,7 +237,8 @@ RUN set -eux; \
     test -x /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.sh; \
     test -e /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
-    test -s /usr/share/raku-kris/base-packages.txt; \
+    test -s /usr/share/raku-kris/owned-packages.txt; \
+    ! grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt; \
     test -e /usr/share/factory/var/lib/raku-kris/packages.list; \
     test ! -s /usr/share/factory/var/lib/raku-kris/packages.list; \
     test -f /usr/lib/tmpfiles.d/raku-kris.conf; \
