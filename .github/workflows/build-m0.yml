@@ -1,0 +1,75 @@
+name: Build M0
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_image:
+        description: "Optional explicit bootc base image for compatibility testing"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-m0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Fedora 44 pinned build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n dracut/modules.d/90raku-kris/module-setup.sh
+          bash -n dracut/modules.d/90raku-kris/raku-kris-overlay.sh
+          bash -n tests/boot-check.sh
+          grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
+          ! grep -R '/sysroot/ostree/deploy' dracut/modules.d/90raku-kris
+
+      - name: Install Podman
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman
+          sudo podman version
+
+      - name: Build bootc image
+        shell: bash
+        env:
+          BASE_IMAGE_OVERRIDE: ${{ inputs.base_image }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ -n "${BASE_IMAGE_OVERRIDE:-}" ]]; then
+            echo "Compatibility build with explicit base: ${BASE_IMAGE_OVERRIDE}"
+            args+=(--build-arg "BASE_IMAGE=${BASE_IMAGE_OVERRIDE}")
+          else
+            echo "Release-path build with pinned Containerfile base"
+          fi
+          sudo podman build \
+            --pull=always \
+            "${args[@]}" \
+            -t localhost/raku-kris:m0 \
+            .
+
+      - name: Inspect built image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman inspect localhost/raku-kris:m0 --format '{{.Id}}'
+          test "$(sudo podman inspect localhost/raku-kris:m0 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
+          test "$(sudo podman inspect localhost/raku-kris:m0 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
