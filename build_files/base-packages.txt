@@ -34,12 +34,39 @@ ksystemstats
 xdg-desktop-portal
 xdg-desktop-portal-kde
 xdg-user-dirs
+udisks2
+
+# Mini-PC network + Bluetooth: MediaTek MT7921-class adapter.
+# NetworkManager-wifi does not hard-require a Wi-Fi auth backend, so keep
+# wpa_supplicant explicit. bluedevil owns the KDE/BlueZ Bluetooth closure.
+NetworkManager-wifi
+wpa_supplicant
+bluedevil
+mt7xxx-firmware
+
+# AMD APU / Vega-class graphics: only the hardware-specific firmware plus
+# userspace acceleration. Do not install the monolithic linux-firmware bundle.
+amd-gpu-firmware
+amd-ucode-firmware
+mesa-va-drivers
+mesa-vulkan-drivers
 
 # Audio/session plumbing. No JACK/pro-audio or Phonon root in M0.
 pipewire
 pipewire-alsa
 pipewire-pulseaudio
 wireplumber
+
+# Printing + scanning. plasma-print-manager pulls the CUPS daemon/UI closure;
+# sane-backends pulls the standard SANE runtime including AirScan support.
+plasma-print-manager
+cups-filters
+sane-backends
+
+# Local desktop/system utilities.
+iproute
+tar
+zram-generator-defaults
 
 # Visual baseline: icons/cursor only. Keep fonts to hard dependencies for M0.
 breeze-icon-theme
