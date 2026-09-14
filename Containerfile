@@ -67,6 +67,9 @@ RUN set -eux; \
       plasma-print-manager \
       cups \
       cups-filters \
+      plasma-firewall \
+      plasma-firewall-firewalld \
+      firewalld \
       iproute \
       tar \
       zram-generator \
@@ -137,8 +140,11 @@ RUN set -eux; \
     rm -f /boot/initramfs-*.img; \
     test -z "$(find /boot -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null)"
 
-RUN systemctl enable --force plasmalogin.service \
-    && systemctl set-default graphical.target
+RUN set -eux; \
+    systemctl enable --force plasmalogin.service; \
+    systemctl enable firewalld.service; \
+    systemctl disable ufw.service || true; \
+    systemctl set-default graphical.target
 
 # Static image invariants. Runtime overlay persistence is intentionally left to
 # the M0 VM matrix; a green container build cannot prove it.
@@ -158,6 +164,10 @@ RUN set -eux; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     rpm -q xcb-util-cursor; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
+    test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
+    test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
+    systemctl is-enabled firewalld.service | grep -qx enabled; \
+    ! systemctl is-enabled ufw.service >/dev/null 2>&1; \
     test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
     test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
     ! rpm -q glibc-all-langpacks >/dev/null 2>&1; \
