@@ -48,6 +48,28 @@ RUN set -eux; \
     do \
       ! rpm -q "$pkg" >/dev/null 2>&1; \
     done; \
+    rpm -q \
+      NetworkManager-wifi \
+      wpa_supplicant \
+      bluedevil \
+      bluez \
+      bluez-obexd \
+      mt7xxx-firmware \
+      amd-gpu-firmware \
+      amd-ucode-firmware \
+      mesa-va-drivers \
+      mesa-vulkan-drivers \
+      udisks2 \
+      plasma-print-manager \
+      cups \
+      cups-filters \
+      sane-backends \
+      sane-airscan \
+      iproute \
+      tar \
+      zram-generator \
+      zram-generator-defaults; \
+    ! rpm -q linux-firmware >/dev/null 2>&1; \
     dnf5 check --dependencies; \
     : > /tmp/fedora-base-nevra.after; \
     while IFS= read -r pkg; do \
@@ -134,14 +156,6 @@ RUN set -eux; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
     test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
     test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
-    for pkg in \
-      glibc-all-langpacks \
-      pipewire-jack-audio-connection-kit \
-      pipewire-jack-audio-connection-kit-libs \
-      phonon-qt6 \
-      phonon-common; \
-    do \
-      ! rpm -q "$pkg" >/dev/null 2>&1; \
-    done; \
-    dnf5 check --dependencies; \
+    ! rpm -q glibc-all-langpacks >/dev/null 2>&1; \
+    ! rpm -q linux-firmware >/dev/null 2>&1; \
     bootc container lint
