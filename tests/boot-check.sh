@@ -19,7 +19,7 @@ check "deployment recorded"      "test -s /var/lib/raku-kris/deployment"
 check "overlay upper present"    "test -d /var/lib/raku-kris/upper"
 check "overlay work present"     "test -d /var/lib/raku-kris/work"
 check "hook ran (journal)"       "journalctl -b | grep -q raku-kris-overlay"
-check "hook accepted M0 scope"   "! journalctl -b | grep -Eq 'raku-kris-overlay: (no ostree= parameter|unsupported ostree= path|persistent var not found)'"
+check "hook accepted M0 scope"   "! journalctl -b | grep -Eq 'raku-kris-overlay: (no ostree= parameter|unsupported ostree= path|prepared persistent /var not found)'"
 check "SELinux enforcing"        "getenforce | grep -qx Enforcing"
 check "login manager active"     "systemctl is-active plasmalogin.service | grep -qx active"
 
