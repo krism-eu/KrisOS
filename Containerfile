@@ -1,9 +1,11 @@
 # raku-Kris M0 — persistent /usr overlay lifecycle only.
 # No package wrapper or RPM sync yet.
 
-# Known-good Fedora 44 bootc Minimal image used by the preceding RakuKrisOS
-# stabilization build. Updating this digest is an explicit reviewed change.
-FROM quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:03d9e53e46040b1d91441f7776a987dfc136ceb39500daa605237eb0cd211207
+# Release builds use this exact Fedora 44 bootc Minimal digest. CI and manual
+# compatibility tests may override BASE_IMAGE explicitly without weakening the
+# reproducible default.
+ARG BASE_IMAGE=quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:03d9e53e46040b1d91441f7776a987dfc136ceb39500daa605237eb0cd211207
+FROM ${BASE_IMAGE}
 
 ARG RELEASE=0.1.0-m0
 LABEL org.opencontainers.image.title="raku-kris"
