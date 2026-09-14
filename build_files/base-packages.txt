@@ -36,6 +36,12 @@ xdg-desktop-portal-kde
 xdg-user-dirs
 udisks2
 
+# Network firewall. Fedora 44's plasma-firewall package currently pulls both
+# backend plugins; raku-Kris deliberately enables firewalld only. firewalld
+# uses the kernel nftables stack and is the supported runtime backend.
+plasma-firewall
+firewalld
+
 # Mini-PC network + Bluetooth: MediaTek MT7921-class adapter.
 # NetworkManager-wifi does not hard-require a Wi-Fi auth backend, so keep
 # wpa_supplicant explicit. bluedevil owns the KDE/BlueZ Bluetooth closure.
