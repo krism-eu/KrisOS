@@ -36,6 +36,19 @@ xdg-desktop-portal-kde
 xdg-user-dirs
 udisks2
 
+# Daily desktop tools. These are explicit raku-Kris features, not accidental
+# dependency closure: M0 must remain useful even before any Flatpaks are added.
+dolphin
+konsole
+kate
+spectacle
+ark
+gwenview
+okular
+kcalc
+kio-admin
+kinfocenter
+
 # Network firewall. Fedora 44's plasma-firewall package currently pulls both
 # backend plugins; raku-Kris deliberately enables firewalld only. firewalld
 # uses the kernel nftables stack and is the supported runtime backend.
@@ -71,9 +84,14 @@ wireplumber
 plasma-print-manager
 cups-filters
 
-# Local desktop/system utilities.
+# Local desktop/system utilities. NTFS3 is provided by the Fedora kernel;
+# ntfs-3g is the userspace fallback and ntfsprogs supplies NTFS maintenance
+# tools for the real shared/triboot NTFS partition.
 iproute
 tar
+bash-completion
+ntfs-3g
+ntfsprogs
 zram-generator-defaults
 
 # Visual baseline: icons/cursor only. Keep fonts to hard dependencies for M0.
