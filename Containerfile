@@ -63,8 +63,10 @@ RUN set -eux; \
       [ -e "$moddir/vmlinuz" ] || continue; \
       found_kernel=1; \
       dracut --force --no-hostonly "$moddir/initramfs.img" "$kver"; \
-      lsinitrd "$moddir/initramfs.img" | grep -q 'raku-kris-overlay'; \
-      lsinitrd "$moddir/initramfs.img" | grep -q '90raku-kris'; \
+      lsinitrd "$moddir/initramfs.img" > /tmp/raku-kris-lsinitrd.txt; \
+      grep -Fq 'usr/bin/raku-kris-overlay' /tmp/raku-kris-lsinitrd.txt; \
+      grep -Fq 'raku-kris-overlay.service' /tmp/raku-kris-lsinitrd.txt; \
+      rm -f /tmp/raku-kris-lsinitrd.txt; \
     done; \
     [ "$found_kernel" -eq 1 ]; \
     if [ "$root_was_symlink" -eq 1 ]; then \
