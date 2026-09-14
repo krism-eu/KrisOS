@@ -57,7 +57,7 @@ RUN set -eux; \
       mt7xxx-firmware \
       amd-gpu-firmware \
       amd-ucode-firmware \
-      mesa-va-drivers \
+      mesa-dri-drivers \
       mesa-vulkan-drivers \
       udisks2 \
       plasma-print-manager \
@@ -69,6 +69,8 @@ RUN set -eux; \
       tar \
       zram-generator \
       zram-generator-defaults; \
+    rpm -q --whatprovides mesa-va-drivers; \
+    test -e /usr/lib64/dri/radeonsi_drv_video.so; \
     ! rpm -q linux-firmware >/dev/null 2>&1; \
     dnf5 check --dependencies; \
     : > /tmp/fedora-base-nevra.after; \
