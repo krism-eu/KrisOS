@@ -14,17 +14,42 @@ LABEL org.opencontainers.image.description="Fedora 44 bootc Minimal + persistent
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
-# Immutable base package set. Keep weak dependencies disabled and defer further
-# trimming until the M0 boot/login path has been verified in a VM.
+# Immutable raku-Kris package delta. Fedora owns every RPM already present in
+# the pinned bootc base: exclude those names from the layering transaction and
+# verify their exact installed EVRAs are unchanged afterwards. If the desktop
+# requires a newer Fedora-owned RPM, the build must fail and the base digest
+# must move forward instead.
 COPY build_files/base-packages.txt /tmp/base-packages.txt
 RUN set -eux; \
+    rpm -qa --qf '%{NAME}\n' | sort -u > /tmp/fedora-base-names.txt; \
+    : > /tmp/fedora-base-nevra.before; \
+    while IFS= read -r pkg; do \
+      rpm -q --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' "$pkg" \
+        >> /tmp/fedora-base-nevra.before; \
+    done < /tmp/fedora-base-names.txt; \
+    sort -u -o /tmp/fedora-base-nevra.before /tmp/fedora-base-nevra.before; \
+    base_excludes="$(paste -sd, /tmp/fedora-base-names.txt)"; \
     grep -vE '^[[:space:]]*(#|$)' /tmp/base-packages.txt \
-      | xargs dnf5 -y --setopt=install_weak_deps=False install; \
+      | xargs dnf5 -y \
+          --setopt=install_weak_deps=False \
+          --setopt="excludepkgs=${base_excludes}" \
+          install; \
     if rpm -q glibc-all-langpacks >/dev/null 2>&1; then \
       dnf5 -y remove glibc-all-langpacks; \
     fi; \
+    : > /tmp/fedora-base-nevra.after; \
+    while IFS= read -r pkg; do \
+      rpm -q --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' "$pkg" \
+        >> /tmp/fedora-base-nevra.after; \
+    done < /tmp/fedora-base-names.txt; \
+    sort -u -o /tmp/fedora-base-nevra.after /tmp/fedora-base-nevra.after; \
+    diff -u /tmp/fedora-base-nevra.before /tmp/fedora-base-nevra.after; \
     dnf5 clean all; \
-    rm -f /tmp/base-packages.txt; \
+    rm -f \
+      /tmp/base-packages.txt \
+      /tmp/fedora-base-names.txt \
+      /tmp/fedora-base-nevra.before \
+      /tmp/fedora-base-nevra.after; \
     ! rpm -q glibc-all-langpacks >/dev/null 2>&1
 
 # Overlay infrastructure.
