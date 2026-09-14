@@ -85,16 +85,19 @@ if [ "$already_mounted" -eq 1 ]; then
     exit 0
 fi
 
-# This service runs after ostree-prepare-root.service. At this point /sysroot is
-# the prepared deployment root and its persistent /var is already exposed at
-# /sysroot/var. Do not reach back into the physical OSTree repository layout:
-# /sysroot/var is the interface we intentionally depend on.
-if [ ! -d "$sysroot/var" ]; then
-    log "prepared persistent /var not found — skipping"
+# This service runs after ostree-prepare-root.service. With composefs the
+# prepared deployment view under /sysroot is read-only during initrd, including
+# /sysroot/var. The writable persistent var is the OSTree stateroot backing
+# directory below /sysroot/ostree/deploy/<stateroot>/var; after switch-root that
+# same filesystem is exposed as /var. Derive the stateroot from ostree= above
+# instead of hard-coding its name.
+persistent_var="$sysroot/ostree/deploy/$stateroot/var"
+if [ ! -d "$persistent_var" ]; then
+    log "persistent OSTree var not found at $persistent_var — skipping"
     exit 0
 fi
 
-state="$sysroot/var/lib/raku-kris"
+state="$persistent_var/lib/raku-kris"
 upper="$state/upper"
 work="$state/work"
 saved="$state/deployment"
