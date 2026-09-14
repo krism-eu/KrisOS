@@ -44,7 +44,11 @@ RUN set -eux; \
       pipewire-jack-audio-connection-kit \
       pipewire-jack-audio-connection-kit-libs \
       phonon-qt6 \
-      phonon-common; \
+      phonon-common \
+      sane-backends \
+      sane-backends-libs \
+      sane-airscan \
+      libsane-airscan; \
     do \
       ! rpm -q "$pkg" >/dev/null 2>&1; \
     done; \
@@ -63,8 +67,6 @@ RUN set -eux; \
       plasma-print-manager \
       cups \
       cups-filters \
-      sane-backends \
-      sane-airscan \
       iproute \
       tar \
       zram-generator \
