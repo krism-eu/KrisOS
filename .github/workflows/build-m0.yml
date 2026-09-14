@@ -36,6 +36,7 @@ jobs:
           bash -n dracut/modules.d/90raku-kris/module-setup.sh
           bash -n dracut/modules.d/90raku-kris/raku-kris-overlay.sh
           bash -n tests/boot-check.sh
+          python3 tests/test_overlay_hook.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           grep -Fq 'persistent_var="$sysroot/ostree/deploy/$stateroot/var"' \
             dracut/modules.d/90raku-kris/raku-kris-overlay.sh

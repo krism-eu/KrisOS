@@ -156,14 +156,20 @@ if [ "$changed" -eq 1 ]; then
     fi
 fi
 
-# The upper/work directories live below /var and therefore carry var_lib_t.
-# Without an explicit root context, mounting that overlay directly on /usr can
-# make the overlay mount root inherit the wrong SELinux label and break early
-# userspace services. Preserve the target mountpoint label while keeping lower
-# inode labels intact.
+# OverlayFS exposes the upper directory's metadata for the merged /usr root.
+# Directories created in initrd can have no security.selinux xattr at all;
+# rootcontext=@target alone did not prevent unlabeled_t after switch-root in
+# the M0 VM. Persist the immutable /usr label on the upper root before mounting.
+# Do this on every boot, including cache reuse, to repair existing unlabelled
+# roots. Never recurse: payload labels belong to their logical /usr paths.
+if ! chcon --reference="$sysroot/usr" "$upper"; then
+    log "WARNING: cannot label overlay root — continuing on base /usr (degraded)"
+    exit 0
+fi
+
 log "mounting persistent overlay on /sysroot/usr"
 if ! mount -t overlay overlay \
-        -o "lowerdir=$sysroot/usr,upperdir=$upper,workdir=$work,rootcontext=@target" \
+        -o "lowerdir=$sysroot/usr,upperdir=$upper,workdir=$work" \
         "$sysroot/usr"; then
     log "WARNING: overlay mount failed — continuing on base /usr (degraded)"
     exit 0

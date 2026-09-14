@@ -15,7 +15,7 @@ installkernel() {
 }
 
 install() {
-    inst_multiple mount mkdir rm
+    inst_multiple mount mkdir rm chcon
     inst_script "$moddir/raku-kris-overlay.sh" /usr/bin/raku-kris-overlay
     inst_simple "$moddir/raku-kris-overlay.service" \
         "$systemdsystemunitdir/raku-kris-overlay.service"

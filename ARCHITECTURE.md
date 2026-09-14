@@ -95,6 +95,9 @@ Non esiste merge della rpmdb e non esiste una split-rpmdb proprietaria.
    Il meccanismo DNF5 concreto viene validato in M1 prima di essere congelato.
 6. **SELinux resta enforcing.** Nessun `restorecon -R` sul backing path
    `upper/`: i payload vengono creati attraverso il pathname logico `/usr`.
+   Prima del mount, a ogni boot, `chcon --reference=/sysroot/usr` copia il
+   contesto della base sulla sola directory radice `upper/`, senza ricorsione.
+   Se questa operazione fallisce, l'hook continua sulla base senza overlay.
    M1 può eseguire un relabel mirato dei soli file di stato sotto
    `/var/lib/raku-kris` creati nell'initrd.
 7. **Niente RakuOS a runtime o build-time.** Il motivo è ridurre compatibilità,
