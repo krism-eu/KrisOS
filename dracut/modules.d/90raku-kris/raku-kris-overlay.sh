@@ -45,7 +45,7 @@ rest="${rest#*/}"
 bootcsum="${rest%%/*}"
 treeserial="${rest#*/}"
 
-# Reject malformed components before using the stateroot in a filesystem path.
+# Reject malformed components before using them as persistent state metadata.
 case "$boot_generation" in
     boot.0|boot.1) ;;
     *) log "invalid boot generation — skipping"; exit 0 ;;
@@ -85,13 +85,16 @@ if [ "$already_mounted" -eq 1 ]; then
     exit 0
 fi
 
-var="$sysroot/ostree/deploy/$stateroot/var"
-if [ ! -d "$var" ]; then
-    log "persistent var not found for stateroot '$stateroot' — skipping"
+# This service runs after ostree-prepare-root.service. At this point /sysroot is
+# the prepared deployment root and its persistent /var is already exposed at
+# /sysroot/var. Do not reach back into the physical OSTree repository layout:
+# /sysroot/var is the interface we intentionally depend on.
+if [ ! -d "$sysroot/var" ]; then
+    log "prepared persistent /var not found — skipping"
     exit 0
 fi
 
-state="$var/lib/raku-kris"
+state="$sysroot/var/lib/raku-kris"
 upper="$state/upper"
 work="$state/work"
 saved="$state/deployment"
