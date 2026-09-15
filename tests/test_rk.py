@@ -4,8 +4,21 @@ import importlib.machinery
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 rk = importlib.machinery.SourceFileLoader('rk', str(Path(__file__).resolve().parents[1] / 'bin/rk')).load_module()
+
+
+def guard_output(*args):
+    if args[:2] == ('findmnt', '-rn'):
+        return '42 overlay rw,relatime,upperdir=/var/lib/raku-kris/upper,workdir=/var/lib/raku-kris/work'
+    if args == ('getenforce',):
+        return 'Enforcing'
+    if args == ('ls', '-Zd', '/usr'):
+        return 'system_u:object_r:usr_t:s0 /usr'
+    if args == ('rpm', '--eval', '%{_dbpath}'):
+        return '/usr/lib/sysimage/rpm'
+    raise AssertionError(f'unexpected command: {args!r}')
 
 
 class Policy(unittest.TestCase):
@@ -38,6 +51,24 @@ class Policy(unittest.TestCase):
             rk.atomic(path, 'tree\nunzip\n')
             self.assertEqual(path.read_text(), 'tree\nunzip\n')
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), ['packages.list'])
+
+    def test_guard_does_not_reconstruct_deployment_from_bootcsum(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)), \
+                mock.patch.object(rk, 'output', side_effect=guard_output):
+            # A stale/foreign-looking marker must not be interpreted by rk;
+            # deployment invalidation belongs exclusively to the boot hook.
+            (Path(directory) / 'deployment').write_text('default/' + 'a' * 64 + '/0\n')
+            mount = rk.guard()
+            self.assertTrue(mount.startswith('42 overlay '))
+
+    def test_guard_blocks_pending_transaction_recovery(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)), \
+                mock.patch.object(rk, 'output', side_effect=guard_output):
+            (Path(directory) / 'pending').write_text('recover\n')
+            with self.assertRaisesRegex(RuntimeError, 'Interrupted transaction requires reboot'):
+                rk.guard()
 
 
 if __name__ == '__main__':
