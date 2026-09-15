@@ -83,6 +83,31 @@ class OverlayHookTests(unittest.TestCase):
         self.run_hook(RK_MOUNT_EXIT="1")
         self.assertFalse((self.state / "deployment").exists())
 
+    def test_dot_stateroots_cannot_touch_state_outside_a_stateroot(self):
+        for stateroot in (".", ".."):
+            with self.subTest(stateroot=stateroot):
+                escaped = (self.sysroot / "ostree/deploy" / stateroot /
+                           "var/lib/raku-kris").resolve()
+                (escaped / "upper").mkdir(parents=True)
+                sentinel = escaped / "upper/keep-me"
+                sentinel.write_text("must survive")
+                (self.root / "cmdline").write_text(
+                    "ostree=/ostree/boot.0/" + stateroot + "/" + "a" * 64 + "/0\n")
+                output = self.run_hook()
+                self.assertIn("invalid stateroot", output)
+                self.assertEqual(sentinel.read_text(), "must survive")
+                self.assertFalse((escaped / "deployment").exists())
+                self.assertFalse((escaped / "needs-sync").exists())
+                self.assertFalse(self.calls.exists())
+
+    def test_dots_inside_a_stateroot_name_remain_valid(self):
+        identity = "fedora..test-44/" + "a" * 64 + "/0"
+        (self.root / "cmdline").write_text("ostree=/ostree/boot.0/" + identity + "\n")
+        state = self.sysroot / "ostree/deploy/fedora..test-44/var/lib/raku-kris"
+        state.parent.mkdir(parents=True)
+        self.run_hook()
+        self.assertEqual((state / "deployment").read_text(), identity + "\n")
+
 
 if __name__ == "__main__":
     unittest.main()

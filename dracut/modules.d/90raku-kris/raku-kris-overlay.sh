@@ -51,7 +51,7 @@ case "$boot_generation" in
     *) log "invalid boot generation — skipping"; exit 0 ;;
 esac
 case "$stateroot" in
-    ""|*[!A-Za-z0-9._-]*) log "invalid stateroot — skipping"; exit 0 ;;
+    ""|.|..|*[!A-Za-z0-9._-]*) log "invalid stateroot — skipping"; exit 0 ;;
 esac
 case "$bootcsum" in
     ""|*[!0-9a-f]*) log "invalid boot checksum — skipping"; exit 0 ;;

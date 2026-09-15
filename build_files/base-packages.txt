@@ -88,6 +88,9 @@ cups-filters
 # Local desktop/system utilities. NTFS3 is provided by the Fedora kernel;
 # ntfs-3g is the userspace fallback and ntfsprogs supplies NTFS maintenance
 # tools for the real shared/triboot NTFS partition.
+# os-prober is already owned by the pinned Fedora base (1.81-11.fc44 in
+# the verified build). Do not repeat it here: the base-collision check would
+# reject it. Containerfile asserts its installed package and executable.
 iproute
 tar
 bash-completion
