@@ -1,0 +1,15 @@
+[Unit]
+Description=raku-Kris persistent /usr overlay
+DefaultDependencies=no
+RequiresMountsFor=/var
+After=ostree-remount.service
+Before=local-fs.target shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/raku-kris-overlay
+RemainAfterExit=yes
+
+[Install]
+WantedBy=local-fs.target

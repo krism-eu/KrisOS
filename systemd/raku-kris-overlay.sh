@@ -1,9 +1,10 @@
 #!/bin/bash
-# raku-kris-overlay — initrd hook.
+# raku-kris-overlay — early userspace persistent /usr overlay.
 #
-# Single responsibility: mount a persistent overlay on /sysroot/usr whose
-# cache belongs to the currently booted OSTree deployment identity.
-# Any failure falls back to the immutable base and returns success.
+# Runs after ostree-remount.service and before local-fs.target. At this point
+# the booted deployment is active, /var is writable, and normal services have
+# not started yet. Any failure falls back to the immutable /usr and returns
+# success so the machine remains bootable.
 
 set -u
 
@@ -11,7 +12,6 @@ log() {
     echo "raku-kris-overlay: $*"
 }
 
-# Read ostree= from the kernel command line without relying on dracut helpers.
 cmdline=""
 IFS= read -r cmdline < /proc/cmdline || true
 
@@ -27,7 +27,6 @@ if [ -z "$deploy_path" ]; then
     exit 0
 fi
 
-# Expected OSTree bootlink:
 # /ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREESERIAL
 case "$deploy_path" in
     /ostree/boot.[01]/*/*/*) ;;
@@ -45,7 +44,6 @@ rest="${rest#*/}"
 bootcsum="${rest%%/*}"
 treeserial="${rest#*/}"
 
-# Reject malformed components before using them as persistent state metadata.
 case "$boot_generation" in
     boot.0|boot.1) ;;
     *) log "invalid boot generation — skipping"; exit 0 ;;
@@ -63,18 +61,11 @@ case "$treeserial" in
     */*) log "invalid tree serial — skipping"; exit 0 ;;
 esac
 
-# Deliberately exclude boot.0/boot.1: that generation may flip while the same
-# deployment remains selected.
 deployment_id="$stateroot/$bootcsum/$treeserial"
 
-sysroot=/sysroot
-
-# A manual/retriggered invocation must be a no-op once /sysroot/usr is already
-# overlaid. Check this before touching upper/work so a live mount can never be
-# invalidated by the deployment-change cleanup path.
 already_mounted=0
 while read -r _source target fstype _rest; do
-    if [ "$target" = "$sysroot/usr" ] && [ "$fstype" = "overlay" ]; then
+    if [ "$target" = "/usr" ] && [ "$fstype" = "overlay" ]; then
         already_mounted=1
         break
     fi
@@ -85,19 +76,7 @@ if [ "$already_mounted" -eq 1 ]; then
     exit 0
 fi
 
-# This service runs after ostree-prepare-root.service. With composefs the
-# prepared deployment view under /sysroot is read-only during initrd, including
-# /sysroot/var. The writable persistent var is the OSTree stateroot backing
-# directory below /sysroot/ostree/deploy/<stateroot>/var; after switch-root that
-# same filesystem is exposed as /var. Derive the stateroot from ostree= above
-# instead of hard-coding its name.
-persistent_var="$sysroot/ostree/deploy/$stateroot/var"
-if [ ! -d "$persistent_var" ]; then
-    log "persistent OSTree var not found at $persistent_var — skipping"
-    exit 0
-fi
-
-state="$persistent_var/lib/raku-kris"
+state=/var/lib/raku-kris
 upper="$state/upper"
 work="$state/work"
 saved="$state/deployment"
@@ -130,9 +109,6 @@ fi
 
 changed=0
 if [ -z "$saved_id" ]; then
-    # Unknown provenance must never be mounted. On a true first boot this only
-    # removes empty directories. Arm needs-sync too: M1 may seed packages.list
-    # in a derived image and must not need a special first-boot path.
     changed=1
     if ! wipe_cache "deployment identity not initialized"; then
         exit 0
@@ -156,27 +132,24 @@ if [ "$changed" -eq 1 ]; then
     fi
 fi
 
-# OverlayFS exposes the upper directory's metadata for the merged /usr root.
-# Directories created in initrd can have no security.selinux xattr at all;
-# rootcontext=@target alone did not prevent unlabeled_t after switch-root in
-# the M0 VM. Persist the immutable /usr label on the upper root before mounting.
-# Do this on every boot, including cache reuse, to repair existing unlabelled
-# roots. Never recurse: payload labels belong to their logical /usr paths.
-if ! chcon --reference="$sysroot/usr" "$upper"; then
+# OverlayFS exposes the upper root inode as the merged /usr root. Copy the
+# immutable /usr SELinux label onto that inode before mounting. Do not recurse:
+# payload labels are created through their logical /usr paths.
+if ! chcon --reference=/usr "$upper"; then
     log "WARNING: cannot label overlay root — continuing on base /usr (degraded)"
     exit 0
 fi
 
-log "mounting persistent overlay on /sysroot/usr"
+log "mounting persistent overlay on /usr"
 if ! mount -t overlay overlay \
-        -o "lowerdir=$sysroot/usr,upperdir=$upper,workdir=$work" \
-        "$sysroot/usr"; then
+        -o "lowerdir=/usr,upperdir=$upper,workdir=$work" \
+        /usr; then
     log "WARNING: overlay mount failed — continuing on base /usr (degraded)"
     exit 0
 fi
 
-# Record validity only after a successful mount. If this write fails the next
-# boot safely treats the cache as uninitialized and rebuilds it.
+# From here on, avoid spawning helpers from the freshly overlaid /usr. Shell
+# builtins are enough to record state and finish the oneshot safely.
 if ! printf '%s\n' "$deployment_id" > "$saved"; then
     log "WARNING: mounted, but deployment identity could not be persisted"
 fi

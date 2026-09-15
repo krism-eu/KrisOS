@@ -33,18 +33,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash -n dracut/modules.d/90raku-kris/module-setup.sh
-          bash -n dracut/modules.d/90raku-kris/raku-kris-overlay.sh
+          bash -n systemd/raku-kris-overlay.sh
           bash -n tests/boot-check.sh
-          python3 tests/test_overlay_hook.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
-          grep -Fq 'persistent_var="$sysroot/ostree/deploy/$stateroot/var"' \
-            dracut/modules.d/90raku-kris/raku-kris-overlay.sh
-          if grep -Fq 'state="$sysroot/var/lib/raku-kris"' \
-            dracut/modules.d/90raku-kris/raku-kris-overlay.sh; then
-            echo 'overlay state must not use read-only /sysroot/var' >&2
-            exit 1
-          fi
+          grep -Fq 'state=/var/lib/raku-kris' systemd/raku-kris-overlay.sh
+          grep -Fq 'After=ostree-remount.service' systemd/raku-kris-overlay.service
+          grep -Fq 'Before=local-fs.target shutdown.target' systemd/raku-kris-overlay.service
+          grep -Fq 'excludepkgs=*.i686' build_files/dnf-raku-kris.conf
+          grep -Fq 'multilib_policy=best' build_files/dnf-raku-kris.conf
 
       - name: Install Podman
         shell: bash

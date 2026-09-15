@@ -1,81 +1,75 @@
-# M1 notes — problemi da chiudere prima di `rk`
+# M1 notes — contratto del package layer
 
-Questo file registra i punti che M0 non deve risolvere prematuramente ma che
-vanno chiusi con test prima di implementare il package wrapper.
+M1 aggiunge il comando `rk` sopra DNF5. Il principio resta semplice:
+`packages.list` contiene solo le richieste esplicite dell'utente e l'overlay
+`/usr` è cache ricostruibile.
 
-## 1. Stato persistente fuori da `/usr`
-
-L'overlay copre solo `/usr`, ma un RPM può dichiarare file sotto `/etc` o
-`/var` e gli scriptlet possono modificare stato persistente anche quando il
-payload dell'RPM vive quasi interamente in `/usr`.
-
-Dopo un cambio deployment `upper/` viene ricreato. Qualunque effetto persistente
-fuori da `/usr` non viene quindi automaticamente ricostruito o rimosso insieme
-all'overlay.
-
-M1 deve scegliere e testare una policy esplicita. Le due opzioni ammissibili sono:
-
-- supportare inizialmente solo un sottoinsieme di RPM compatibili con il modello
-  raku-Kris, rifiutando quelli con effetti persistenti non gestibili;
-- oppure definire una semantica di lifecycle/cleanup per `/etc` e `/var` senza
-  introdurre una seconda rpmdb o un database proprietario complesso.
-
-Non è accettabile promettere cleanup completo senza poterlo dimostrare dopo
-update e rollback.
-
-## 2. Enforcement reale di additive-only
+## Ownership immutabile
 
 `/usr/share/raku-kris/owned-packages.txt` elenca per nome tutti i pacchetti
-appartenenti all'immagine immutabile finale: sia quelli già presenti nella base
-Fedora pinned, sia il delta installato da raku-Kris durante la build. Il nome è
-intenzionale: M1 deve proteggere l'intera immagine immutabile, non solo la base
-Fedora, da update, downgrade, rimozioni o sostituzioni attraverso l'overlay.
+appartenenti all'immagine finale: base Fedora pinned più delta raku-Kris.
+Le pseudo-entry `gpg-pubkey` sono escluse; repository e chiavi sono una policy
+separata.
 
-Le pseudo-entry RPM `gpg-pubkey` sono escluse da questo snapshot. La fiducia in
-repository e chiavi è una policy separata che M1 deve definire esplicitamente;
-una nuova chiave importata non deve essere interpretata come un nuovo pacchetto
-utente o come una violazione dell'ownership immutabile.
+M1 deve impedire alle transazioni utente di aggiornare, fare downgrade,
+rimuovere, obsoletare o sostituire semanticamente pacchetti owned. Il wrapper
+usa DNF/RPM reali; non introduce una seconda rpmdb.
 
-DNF5 documenta `excludepkgs` come filtro che rende i pacchetti disponibili
-invisibili alle transazioni. Questo va comunque validato sulla nostra immagine
-con casi avversi, almeno:
+## Architettura pacchetti — congelata
 
-- dipendenza hard che richiede una versione più nuova di un pacchetto owned;
-- `Obsoletes:` / `Conflicts:` verso un pacchetto owned;
-- pacchetto con nome diverso che fornisce la stessa capability;
-- file conflict con un file già posseduto dall'immagine immutabile;
-- RPM locale passato direttamente come file;
-- downgrade o installazione di una NEVRA esplicita di un pacchetto owned.
+raku-Kris è single-arch:
 
-`protected_packages` e/o versionlock sono candidati di hardening da valutare
-insieme agli excludes; non sono ancora parte del contratto M1.
+- ammessi `x86_64` e `noarch`;
+- `i686` non è supportato;
+- niente multilib;
+- la configurazione DNF globale esclude `*.i686` e usa
+  `multilib_policy=best`;
+- `rk` deve rifiutare richieste `.i686`, architetture forzate incompatibili e
+  tentativi di disabilitare gli excludes della policy.
 
-## Compatibility gate: DNF5 su bootc con `/usr` già writable
+Anche l'immagine viene verificata in build: un RPM `i686` rende la build non
+valida.
 
-DNF5 ha una propria semantica di `persistence` sui sistemi bootc. Il default
-`auto` tratta in modo speciale un sistema bootc il cui `/usr` è già writable,
-e la modalità `transient` può gestire un overlay bootc proprio.
+## Metadata DNF — niente refresh continuo
 
-Prima di implementare `rk`, sulla versione DNF5 realmente presente nella base
-pinned va verificato che una transazione possa operare direttamente sul nostro
-`/usr` già overlaid senza creare, sostituire o interpretare un secondo overlay.
-Il wrapper dovrà impostare esplicitamente la modalità compatibile risultante dal
-test; non deve dipendere dal default `auto`.
+I timer `dnf-makecache.timer` e `dnf5-makecache.timer` sono mascherati.
+raku-Kris non mantiene i metadata DNF aggiornati in background.
 
-Questo è un gate di integrazione, non un terzo modello di stato: raku-Kris
-continua ad avere un solo upper persistente e non delega a DNF5 il lifecycle
-dell'overlay.
+Il refresh è esplicito e on-demand: una futura operazione `rk` può richiederlo
+quando serve, oppure l'utente può richiederlo direttamente. Non esiste un timer
+periodico nascosto.
 
-## Note implementative già decise
+## Transazioni M1
 
-- Il first boot deve armare `needs-sync` anche se il factory `packages.list` è
-  vuoto: così una futura immagine derivata con richieste pre-registrate non ha
-  un caso speciale.
-- I file di stato creati nell'initrd possono richiedere relabeling dopo
-  switch-root. Il servizio M1 userà un `restorecon` mirato sui file/directories
-  di stato sotto `/var/lib/raku-kris`, mai un relabel ricorsivo di `upper/`.
-- `packages.list` descrive solo le richieste esplicite dell'utente; le
-  dipendenze vengono risolte nuovamente contro la base corrente a ogni rebuild.
-- `rk rm` non implementerà un dependency graph o autoremove proprietario: la
-  rimozione deve essere una vera transazione RPM/DNF5 e la lista viene aggiornata
-  solo dopo successo.
+`rk add` e `rk rm` devono usare vere transazioni DNF/RPM. La modalità DNF5 per
+un `/usr` già writable deve essere scelta esplicitamente dal wrapper; non si
+affida al default `auto` e non deve creare un secondo overlay concorrente.
+
+`rk rm` aggiorna `packages.list` solo dopo una transazione riuscita. Non viene
+implementato un dependency graph o un autoremove proprietario: le dipendenze
+restano responsabilità di DNF.
+
+Dopo un cambio deployment M0 ricrea `upper/` e arma `needs-sync`; M1 reinstalla
+le richieste esplicite di `packages.list` contro la nuova base e risolve di
+nuovo le dipendenze.
+
+## Stato fuori da `/usr`
+
+Un RPM può dichiarare file sotto `/etc` o `/var` e gli scriptlet possono
+modificare stato persistente. L'overlay copre solo `/usr`, quindi M1 deve essere
+conservativo: inizialmente può rifiutare pacchetti con effetti persistenti non
+gestibili, invece di promettere cleanup che non può garantire.
+
+I file di stato propri di raku-Kris sotto `/var/lib/raku-kris` possono essere
+sottoposti a relabel mirato. Non si esegue mai un relabel ricorsivo di
+`upper/`.
+
+## Contratto minimo di `rk`
+
+- `rk add`: valida policy/architettura, esegue la transazione, poi registra la
+  richiesta esplicita.
+- `rk rm`: esegue la rimozione reale, poi rimuove la richiesta dalla lista.
+- niente i686/multilib;
+- niente refresh metadata periodico;
+- niente modifica dei pacchetti owned;
+- niente database proprietari aggiuntivi.

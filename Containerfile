@@ -14,6 +14,12 @@ LABEL org.opencontainers.image.description="Fedora 44 bootc Minimal + persistent
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
+# Global DNF5 policy: raku-Kris is x86_64/noarch only. User-facing package
+# operations in M1 inherit this and the wrapper will reject attempts to bypass
+# the architecture/exclude policy.
+RUN install -d -m 0755 /etc/dnf/libdnf5.conf.d
+COPY build_files/dnf-raku-kris.conf /etc/dnf/libdnf5.conf.d/90-raku-kris.conf
+
 # Immutable raku-Kris package delta. Fedora owns every RPM already present in
 # the pinned bootc base: exclude those names from the layering transaction and
 # verify their exact installed EVRAs are unchanged afterwards. If the desktop
@@ -129,6 +135,10 @@ RUN set -eux; \
     rpm -q --whatprovides mesa-va-drivers; \
     test -e /usr/lib64/dri/radeonsi_drv_video.so; \
     assert_absent linux-firmware; \
+    if rpm -qa --qf '%{ARCH}\n' | grep -qx i686; then \
+      echo 'i686 packages are not allowed in raku-Kris' >&2; \
+      exit 1; \
+    fi; \
     dnf5 check --dependencies; \
     : > /tmp/fedora-base-nevra.after; \
     while IFS= read -r pkg; do \
@@ -150,11 +160,12 @@ RUN set -eux; \
       /tmp/fedora-base-nevra.before \
       /tmp/fedora-base-nevra.after
 
-# Overlay infrastructure.
-COPY dracut/modules.d/90raku-kris /usr/lib/dracut/modules.d/90raku-kris/
-RUN chmod 0755 \
-    /usr/lib/dracut/modules.d/90raku-kris/module-setup.sh \
-    /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.sh
+# Persistent /usr overlay. Mount it in early real-root userspace rather than in
+# initrd: OSTree has already exposed writable /var, while local-fs.target still
+# holds normal services behind the overlay setup.
+COPY systemd/raku-kris-overlay.sh /usr/libexec/raku-kris-overlay
+COPY systemd/raku-kris-overlay.service /usr/lib/systemd/system/raku-kris-overlay.service
+RUN chmod 0755 /usr/libexec/raku-kris-overlay
 
 # Snapshot every immutable package name owned by the final image: pinned Fedora
 # base plus the raku-Kris delta. RPM key pseudo-packages are deliberately not
@@ -179,45 +190,18 @@ RUN set -eux; \
     install -d -m 0755 /usr/share/factory/var/lib/raku-kris; \
     : > /usr/share/factory/var/lib/raku-kris/packages.list
 
-# bootc images carry initramfs next to each kernel under /usr/lib/modules.
-# /root is normally a symlink to /var/roothome; materialize it only while
-# dracut runs, then restore it linearly. If dracut fails the build fails too,
-# so no trap/helper is needed for an intermediate layer that will be discarded.
-RUN set -eux; \
-    root_was_symlink=0; root_target=''; \
-    if [ -L /root ]; then \
-      root_was_symlink=1; root_target="$(readlink /root)"; \
-      rm -f /root; install -d -m 0700 /root; \
-    fi; \
-    found_kernel=0; \
-    for moddir in /usr/lib/modules/*; do \
-      [ -d "$moddir" ] || continue; \
-      kver="${moddir##*/}"; \
-      [ -e "$moddir/vmlinuz" ] || continue; \
-      found_kernel=1; \
-      dracut --force --no-hostonly "$moddir/initramfs.img" "$kver"; \
-      lsinitrd "$moddir/initramfs.img" > /tmp/raku-kris-lsinitrd.txt; \
-      grep -Fq 'usr/bin/raku-kris-overlay' /tmp/raku-kris-lsinitrd.txt; \
-      grep -Fq 'raku-kris-overlay.service' /tmp/raku-kris-lsinitrd.txt; \
-      rm -f /tmp/raku-kris-lsinitrd.txt; \
-    done; \
-    [ "$found_kernel" -eq 1 ]; \
-    if [ "$root_was_symlink" -eq 1 ]; then \
-      rm -rf /root; ln -s "$root_target" /root; \
-    fi; \
-    rm -f /boot/initramfs-*.img; \
-    test -z "$(find /boot -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null)"
-
 RUN set -eux; \
     printf '%s\n' 'LANG=it_IT.UTF-8' > /etc/locale.conf; \
+    systemctl enable raku-kris-overlay.service; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
     systemctl enable systemd-timesyncd.service; \
+    systemctl mask dnf-makecache.timer dnf5-makecache.timer || true; \
     systemctl disable ufw.service || true; \
     systemctl set-default graphical.target
 
 # Static image invariants. Runtime overlay persistence is intentionally left to
-# the M0 VM matrix; a green container build cannot prove it.
+# the M0 VM smoke test; a green container build cannot prove it.
 RUN set -eux; \
     assert_absent() { \
       if rpm -q "$1" >/dev/null 2>&1; then \
@@ -246,9 +230,8 @@ RUN set -eux; \
     test -x /usr/bin/powerprofilesctl; \
     test -x /usr/bin/os-prober; \
     test -x /usr/bin/ntfsresize; \
-    test -x /usr/lib/dracut/modules.d/90raku-kris/module-setup.sh; \
-    test -x /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.sh; \
-    test -e /usr/lib/dracut/modules.d/90raku-kris/raku-kris-overlay.service; \
+    test -x /usr/libexec/raku-kris-overlay; \
+    test -f /usr/lib/systemd/system/raku-kris-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
     test -s /usr/share/raku-kris/owned-packages.txt; \
     assert_not_in_file gpg-pubkey /usr/share/raku-kris/owned-packages.txt; \
@@ -259,16 +242,26 @@ RUN set -eux; \
       /usr/lib/tmpfiles.d/raku-kris.conf; \
     grep -Fxq 'C /var/lib/raku-kris/packages.list 0644 root root - /usr/share/factory/var/lib/raku-kris/packages.list' \
       /usr/lib/tmpfiles.d/raku-kris.conf; \
-    test -L /root; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
     grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
+    grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
+    grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     rpm -q xcb-util-cursor; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
+    systemctl is-enabled raku-kris-overlay.service | grep -qx enabled; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
     systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
+    if systemctl is-enabled dnf-makecache.timer >/dev/null 2>&1; then \
+      echo 'dnf-makecache.timer must not be enabled' >&2; \
+      exit 1; \
+    fi; \
+    if systemctl is-enabled dnf5-makecache.timer >/dev/null 2>&1; then \
+      echo 'dnf5-makecache.timer must not be enabled' >&2; \
+      exit 1; \
+    fi; \
     if systemctl is-enabled ufw.service >/dev/null 2>&1; then \
       echo 'ufw.service must not be enabled' >&2; \
       exit 1; \

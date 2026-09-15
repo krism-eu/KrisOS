@@ -4,51 +4,54 @@ Fedora 44 bootc Minimal con SELinux enforcing e overlay persistente su `/usr`.
 Il progetto è indipendente da RakuOS: nessun suo codice, RPM, repository o
 formato di stato viene usato.
 
-**M0** valida esclusivamente il lifecycle dell'overlay con backend OSTree:
-first boot, reboot, update, rollback e fallback alla base in caso di errore.
-Il package wrapper arriva solo in M1, dopo i test descritti in
-[`ARCHITECTURE.md`](ARCHITECTURE.md). I problemi di package layering da
-risolvere prima di `rk` sono registrati in [`docs/M1-NOTES.md`](docs/M1-NOTES.md).
+**M0** valida esclusivamente il lifecycle dell'overlay: first boot, reboot,
+cambio deployment e fallback alla base in caso di errore. Il mount avviene in
+early userspace sul sistema reale, dopo `ostree-remount.service` e prima di
+`local-fs.target`: `/var` è già persistente e scrivibile, ma i normali servizi
+non sono ancora partiti.
+
+Il package wrapper arriva in M1. La policy è già stretta: raku-Kris è
+`x86_64`/`noarch`, non usa multilib/i686 e non esegue refresh periodici dei
+metadata DNF in background.
 
 ## Build
 
 ```bash
-buildah bud -t raku-kris:m0 .
+sudo podman build -t localhost/raku-kris:m0 .
 ```
 
 La base Fedora è fissata per digest nel `Containerfile`; un aggiornamento della
 base deve quindi essere un commit esplicito e testato.
 
-La presenza dei pacchetti `composefs` nella base non abilita da sola il backend
-bootc composefs. M0 richiede però esplicitamente il contratto OSTree corrente:
-una kernel cmdline con `ostree=/ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREESERIAL`
-e il relativo `/sysroot/ostree/deploy/<stateroot>/var`. Se il primo boot non
-soddisfa questo contratto, la milestone si ferma: non si adatta il codice alla
-cieca a un backend diverso.
+Il boot continua a usare il contratto OSTree della kernel cmdline:
 
-## Matrice di test M0
+```text
+ostree=/ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREESERIAL
+```
 
-| # | Azione | Risultato atteso |
-|---|---|---|
-| 1 | Boot pulito | contratto OSTree accettato; `findmnt /usr` mostra `overlay`; login manager raggiungibile |
-| 2 | Scrittura overlay | creare `/usr/local/bin/rk-test`, reboot → file ancora presente |
-| 3 | Reboot sullo stesso deployment | upper conservato; identità invariata |
-| 4 | `bootc upgrade` + reboot | upper ricreato; `needs-sync` presente; desktop raggiungibile |
-| 5 | `bootc rollback` + reboot | stesso comportamento del punto 4 |
-| 6 | Mount overlay deliberatamente rotto | boot riuscito sulla base `/usr`, con log degraded |
+Fedora 44 può presentare la root immutabile tramite composefs/OverlayFS; raku-Kris
+non modifica quel mount. Sovrappone un proprio OverlayFS persistente soltanto a
+`/usr`, con `upper/` e `work/` in `/var/lib/raku-kris/`.
 
-Verifica rapida post-boot:
+## M0 rapido
+
+Dopo il boot:
 
 ```bash
-grep -o 'ostree=[^ ]*' /proc/cmdline
-findmnt -no SOURCE,FSTYPE /usr
+findmnt -T /usr -o TARGET,SOURCE,FSTYPE,OPTIONS
+systemctl is-active raku-kris-overlay.service
 cat /var/lib/raku-kris/deployment
 ls -la /var/lib/raku-kris/
-journalctl -b | grep raku-kris-overlay
 getenforce
 ```
 
-È disponibile anche `tests/boot-check.sh` come smoke test da eseguire sulla VM.
+`/usr` deve essere un mount `overlay` dedicato, il servizio deve essere `active`
+e `upper/`, `work/` e `deployment` devono esistere. `tests/boot-check.sh` raccoglie
+questi controlli in un unico smoke test.
+
+La prova di persistenza M0 è semplice: creare un file sotto `/usr`, riavviare e
+verificare che esista ancora. Quando cambia il deployment, la cache `upper/` è
+invece ricreata vuota e viene armato `needs-sync` per M1.
 
 ## Layout repository
 
@@ -58,13 +61,14 @@ getenforce
 ├── Containerfile
 ├── README.md
 ├── build_files/
-│   └── base-packages.txt
+│   ├── base-packages.txt
+│   ├── dnf-raku-kris.conf
+│   └── tmpfiles-raku-kris.conf
 ├── docs/
 │   └── M1-NOTES.md
-├── dracut/modules.d/90raku-kris/
-│   ├── module-setup.sh
-│   ├── raku-kris-overlay.service
-│   └── raku-kris-overlay.sh
+├── systemd/
+│   ├── raku-kris-overlay.sh
+│   └── raku-kris-overlay.service
 └── tests/
     └── boot-check.sh
 ```
