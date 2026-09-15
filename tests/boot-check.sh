@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post-boot smoke test for raku-Kris M0. Run on the booted system.
+# Post-boot smoke test for raku-Kris M1. Run on the booted system.
 set -u
 
 fail=0
@@ -25,6 +25,8 @@ check() {
 }
 
 check "OSTree backend contract"  "grep -Eq '(^|[[:space:]])ostree=/ostree/boot\.[01]/[^/[:space:]]+/[0-9a-f]+/[0-9]+([[:space:]]|$)' /proc/cmdline"
+check "systemd-homed disabled"    "! systemctl is-enabled systemd-homed.service >/dev/null 2>&1"
+check "systemd-homed inactive"    "! systemctl is-active systemd-homed.service >/dev/null 2>&1"
 if [ "$recovery" -eq 1 ]; then
     check "recovery: /usr overlay absent" "command -v findmnt >/dev/null && ! findmnt -rn -M /usr -o FSTYPE | grep -qx overlay"
     check "SELinux enforcing" "getenforce | grep -qx Enforcing"
