@@ -30,9 +30,12 @@ The immutable image records exact owned RPM identities, checked before and after
 transactions. RPM signatures and transaction tests are mandatory. Package names
 are committed atomically only after success. A pending marker blocks further
 operations after interruption; at reboot the overlay service resets the cache,
-and sync restores the last committed requests. Shared existing directory metadata
-and installed Fedora trigger side effects still require VM validation. This is
-not a full rollback of /etc or /var.
+and sync restores the last committed requests. The overlay hook is the sole
+owner of deployment identity and cache invalidation; `rk` validates the live
+writable overlay, recovery markers, SELinux state and immutable package NEVRAs,
+but does not reconstruct deployment identity from the kernel boot checksum.
+Shared existing directory metadata and installed Fedora trigger side effects
+still require VM validation. This is not a full rollback of /etc or /var.
 
 After deployment changes, the sync oneshot runs after multi-user.target. Failure
 leaves needs-sync for an explicit `sudo rk sync` retry; there is no refresh timer.
