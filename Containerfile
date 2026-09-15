@@ -1,5 +1,5 @@
-# raku-Kris M0 — persistent /usr overlay lifecycle only.
-# No package wrapper or RPM sync yet.
+# raku-Kris M1 — persistent /usr overlay plus restricted rk package layer.
+# M1 includes additive rk transactions, deployment sync and recovery.
 
 # Release builds use this exact Fedora 44 bootc Minimal digest. CI and manual
 # compatibility tests may override BASE_IMAGE explicitly without weakening the
@@ -7,10 +7,10 @@
 ARG BASE_IMAGE=quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:03d9e53e46040b1d91441f7776a987dfc136ceb39500daa605237eb0cd211207
 FROM ${BASE_IMAGE}
 
-ARG RELEASE=0.1.0-m0
+ARG RELEASE=0.1.0-m1
 LABEL org.opencontainers.image.title="raku-kris"
 LABEL org.opencontainers.image.version="${RELEASE}"
-LABEL org.opencontainers.image.description="Fedora 44 bootc Minimal + persistent additive /usr overlay (M0)"
+LABEL org.opencontainers.image.description="Fedora 44 bootc Minimal + persistent additive /usr overlay and rk package layer (M1)"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
@@ -208,15 +208,17 @@ RUN set -eux; \
 RUN set -eux; \
     printf '%s\n' 'LANG=it_IT.UTF-8' > /etc/locale.conf; \
     systemctl enable raku-kris-overlay.service; \
+    systemctl enable raku-kris-sync.service; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
     systemctl enable systemd-timesyncd.service; \
+    systemctl disable systemd-homed.service; \
     systemctl mask dnf-makecache.timer dnf5-makecache.timer || true; \
     systemctl disable ufw.service || true; \
     systemctl set-default graphical.target
 
 # Static image invariants. Runtime overlay persistence is intentionally left to
-# the M0 VM smoke test; a green container build cannot prove it.
+# the M1 VM smoke test; a green container build cannot prove it.
 RUN set -eux; \
     assert_absent() { \
       if rpm -q "$1" >/dev/null 2>&1; then \
@@ -267,8 +269,14 @@ RUN set -eux; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
     systemctl is-enabled raku-kris-overlay.service | grep -qx enabled; \
+    systemctl is-enabled raku-kris-sync.service | grep -qx enabled; \
+    systemctl is-enabled plasmalogin.service | grep -qx enabled; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
     systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
+    if systemctl is-enabled systemd-homed.service >/dev/null 2>&1; then \
+      echo 'systemd-homed.service must not be enabled' >&2; \
+      exit 1; \
+    fi; \
     if systemctl is-enabled dnf-makecache.timer >/dev/null 2>&1; then \
       echo 'dnf-makecache.timer must not be enabled' >&2; \
       exit 1; \
