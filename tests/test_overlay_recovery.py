@@ -40,7 +40,16 @@ class Recovery(unittest.TestCase):
             with self.subTest(enforcement=enforcement), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / 'cmdline').write_text('ostree=/ostree/boot.0/default/abc/0 raku-kris.overlay=off\n')
-                for name, body in (('findmnt', 'exit 1'), ('systemctl', 'echo active'), ('getenforce', 'echo ' + enforcement)):
+                systemctl = '''
+if [ "$1" = "is-enabled" ] && [ "$2" = "systemd-homed.service" ]; then
+    exit 1
+fi
+if [ "$1" = "is-active" ] && [ "$2" = "systemd-homed.service" ]; then
+    exit 3
+fi
+echo active
+'''.strip()
+                for name, body in (('findmnt', 'exit 1'), ('systemctl', systemctl), ('getenforce', 'echo ' + enforcement)):
                     file = root / name
                     file.write_text('#!/bin/sh\n' + body + '\n')
                     file.chmod(0o755)
