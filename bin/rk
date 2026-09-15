@@ -18,6 +18,11 @@ def output(*args):
     return subprocess.check_output(args, text=True).strip()
 
 
+def mount_snapshot():
+    """Return the live /usr mount identity used across rk transactions."""
+    return output('findmnt', '-rn', '-M', '/usr', '-o', 'ID,FSTYPE,OPTIONS')
+
+
 def names(values):
     for value in values:
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+_.-]*', value) or value.endswith(('.rpm', '.i686', '.x86_64', '.noarch')):
@@ -50,7 +55,7 @@ def sync_dir(path):
 def guard():
     # The overlay hook owns deployment identity and invalidation. rk validates
     # only the live writable overlay and transaction-recovery state here.
-    mount = output('findmnt', '-rn', '-M', '/usr', '-o', 'ID,FSTYPE,OPTIONS')
+    mount = mount_snapshot()
     fields = mount.split()
     if len(fields) != 3 or fields[1] != 'overlay':
         raise RuntimeError('A dedicated /usr overlay is required; base-only boot is read-only for rk')
@@ -194,7 +199,7 @@ def transact(command, requested):
         check_base(owned)
         # pending is expected during the committed transaction itself; validate
         # the mount directly rather than re-entering guard() until it is cleared.
-        after = output('findmnt', '-rn', '-M', '/usr', '-o', 'ID,FSTYPE,OPTIONS')
+        after = mount_snapshot()
         if after != before:
             raise RuntimeError('/usr mount changed during RPM transaction')
         for name in install:
