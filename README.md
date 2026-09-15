@@ -26,8 +26,14 @@ base deve quindi essere un commit esplicito e testato.
 Il boot continua a usare il contratto OSTree della kernel cmdline:
 
 ```text
-ostree=/ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREESERIAL
+ostree=/ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREEBOOTSERIAL
 ```
+
+`BOOTCSUM` identifica gli artefatti di boot e viene usato per localizzare il
+bootlink, ma non è l'identità della cache raku-Kris. Il servizio risolve il
+target del bootlink e persiste `OSNAME/COMMIT/DEPLOYSERIAL`, dove `COMMIT` copre
+l'intero tree OSTree. Un'immagine con `/usr` diverso invalida quindi sempre
+l'upper anche quando kernel e initramfs non cambiano.
 
 Fedora 44 può presentare la root immutabile tramite composefs/OverlayFS; raku-Kris
 non modifica quel mount. Sovrappone un proprio OverlayFS persistente soltanto a
@@ -47,7 +53,8 @@ getenforce
 
 `/usr` deve essere un mount `overlay` dedicato, il servizio deve essere `active`
 e `upper/`, `work/` e `deployment` devono esistere. `tests/boot-check.sh` raccoglie
-questi controlli in un unico smoke test.
+questi controlli in un unico smoke test e verifica che `deployment` corrisponda
+al commit OSTree realmente bootato.
 
 La prova di persistenza M0 è semplice: creare un file sotto `/usr`, riavviare e
 verificare che esista ancora. Quando cambia il deployment, la cache `upper/` è
