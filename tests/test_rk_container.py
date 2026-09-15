@@ -19,7 +19,12 @@ if subprocess.run(['rpm', '-q', 'tree'], stdout=subprocess.DEVNULL).returncode =
 with tempfile.TemporaryDirectory() as directory:
     rk.STATE = Path(directory)
     (rk.STATE / 'packages.list').write_text('')
-    rk.guard = lambda: 'disposable container; VM guard tested separately'
+    fake_mount = (
+        'fake overlay rw,relatime,lowerdir=/usr,'
+        'upperdir=/tmp/fake-upper,workdir=/tmp/fake-work'
+    )
+    rk.mount_snapshot = lambda: fake_mount
+    rk.guard = lambda: fake_mount
     rk.transact('add', {'tree'})
     subprocess.run(['/usr/bin/tree', '--version'], check=True)
     assert (rk.STATE / 'packages.list').read_text() == 'tree\n'
