@@ -36,6 +36,7 @@ jobs:
           bash -n systemd/raku-kris-overlay.sh
           bash -n tests/boot-check.sh
           python3 tests/test_rk.py
+          python3 tests/test_overlay_recovery.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           grep -Fq 'state=/var/lib/raku-kris' systemd/raku-kris-overlay.sh
           grep -Fq 'After=ostree-remount.service' systemd/raku-kris-overlay.service

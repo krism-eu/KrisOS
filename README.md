@@ -77,3 +77,20 @@ invece ricreata vuota e viene armato `needs-sync` per M1.
 implementazione con storia e contratto propri.
 
 Package-layer implementation candidate: see [rk commands and limits](docs/RK.md).
+
+`/usr/share/raku-kris/owned-packages.txt` contiene tutti i pacchetti
+dell'immagine finale (base Fedora + delta raku-Kris). `rk` usa questa lista
+per la policy additive-only e `owned-nevra.txt` per verificarne le versioni.
+
+## Avvio di emergenza
+
+Aggiungere temporaneamente `raku-kris.overlay=off` alla riga del kernel
+nell'editor del menu di avvio. Il servizio salta il mount prima di toccare
+lo stato persistente; anche il sync automatico viene saltato. Rimuovere il
+parametro al successivo avvio per riattivare l'overlay. Non cancella la cache
+né le richieste salvate. SELinux enforcing resta il contratto supportato;
+`selinux=0` non è il meccanismo di recupero dell'overlay.
+
+`tests/boot-check.sh` distingue tre esiti: 0 = controlli del boot normale
+superati; 1 = errore; 2 = controlli del boot di recupero superati, overlay
+volutamente disabilitato. Il codice 2 non certifica il funzionamento dell'overlay.

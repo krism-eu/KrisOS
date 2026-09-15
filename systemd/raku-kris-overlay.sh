@@ -15,8 +15,17 @@ log() {
 cmdline=""
 IFS= read -r cmdline < /proc/cmdline || true
 
+# Split whitespace once, without pathname expansion; retain the final token.
+read -r -a cmdline_tokens <<< "$cmdline"
+for tok in "${cmdline_tokens[@]}"; do
+    if [ "$tok" = "raku-kris.overlay=off" ]; then
+        log "disabled via karg — skipping"
+        exit 0
+    fi
+done
+
 deploy_path=""
-for tok in $cmdline; do
+for tok in "${cmdline_tokens[@]}"; do
     case "$tok" in
         ostree=*) deploy_path="${tok#ostree=}" ;;
     esac
@@ -81,6 +90,8 @@ upper="$state/upper"
 work="$state/work"
 saved="$state/deployment"
 needs_sync="$state/needs-sync"
+# M0: inert marker. M1: reinstall committed requests after cache reset;
+# only rk clears it after successful synchronization.
 
 if ! mkdir -p "$state"; then
     log "WARNING: cannot create state directory — continuing on base /usr"

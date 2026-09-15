@@ -3,6 +3,13 @@
 set -u
 
 fail=0
+recovery=0
+cmdline=""
+IFS= read -r cmdline < /proc/cmdline || true
+read -r -a tokens <<< "$cmdline"
+for token in "${tokens[@]}"; do
+    [ "$token" != "raku-kris.overlay=off" ] || recovery=1
+done
 
 check() {
     if eval "$2"; then
@@ -14,6 +21,18 @@ check() {
 }
 
 check "OSTree backend contract"  "grep -Eq '(^|[[:space:]])ostree=/ostree/boot\.[01]/[^/[:space:]]+/[0-9a-f]+/[0-9]+([[:space:]]|$)' /proc/cmdline"
+if [ "$recovery" -eq 1 ]; then
+    check "recovery: /usr overlay absent" "command -v findmnt >/dev/null && ! findmnt -rn -M /usr -o FSTYPE | grep -qx overlay"
+    check "SELinux enforcing" "getenforce | grep -qx Enforcing"
+    check "login manager active" "systemctl is-active plasmalogin.service | grep -qx active"
+    if [ "$fail" -ne 0 ]; then
+        echo "RECOVERY CHECKS FAILED"
+        exit 1
+    fi
+    echo "RECOVERY BOOT VERIFIED: overlay intentionally disabled; normal overlay checks skipped"
+    # Distinguish recovery from a fully validated normal boot in automation.
+    exit 2
+fi
 check "/usr dedicated overlay"    "test \"$(findmnt -T /usr -n -o TARGET)\" = /usr && test \"$(findmnt -T /usr -n -o FSTYPE)\" = overlay"
 check "overlay service active"    "systemctl is-active raku-kris-overlay.service | grep -qx active"
 check "deployment recorded"       "test -s /var/lib/raku-kris/deployment"
@@ -21,6 +40,7 @@ check "overlay upper present"     "test -d /var/lib/raku-kris/upper"
 check "overlay work present"      "test -d /var/lib/raku-kris/work"
 check "package intent seed"       "test -e /var/lib/raku-kris/packages.list"
 check "SELinux enforcing"         "getenforce | grep -qx Enforcing"
+check "overlay root labeled usr_t" "ls -Zd /usr | grep -q 'object_r:usr_t:'"
 check "login manager active"      "systemctl is-active plasmalogin.service | grep -qx active"
 
 echo

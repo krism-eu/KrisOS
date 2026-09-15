@@ -2,6 +2,7 @@
 Description=Restore requested raku-Kris packages on the current deployment
 After=multi-user.target raku-kris-overlay.service
 ConditionPathExists=/var/lib/raku-kris/needs-sync
+ConditionKernelCommandLine=!raku-kris.overlay=off
 
 [Service]
 Type=oneshot
