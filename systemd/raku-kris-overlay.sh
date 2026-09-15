@@ -36,7 +36,7 @@ if [ -z "$deploy_path" ]; then
     exit 0
 fi
 
-# /ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREESERIAL
+# /ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREEBOOTSERIAL
 case "$deploy_path" in
     /ostree/boot.[01]/*/*/*) ;;
     *)
@@ -51,7 +51,7 @@ rest="${rest#*/}"
 stateroot="${rest%%/*}"
 rest="${rest#*/}"
 bootcsum="${rest%%/*}"
-treeserial="${rest#*/}"
+treebootserial="${rest#*/}"
 
 case "$boot_generation" in
     boot.0|boot.1) ;;
@@ -63,14 +63,43 @@ esac
 case "$bootcsum" in
     ""|*[!0-9a-f]*) log "invalid boot checksum — skipping"; exit 0 ;;
 esac
-case "$treeserial" in
-    ""|*[!0-9]*) log "invalid tree serial — skipping"; exit 0 ;;
+case "$treebootserial" in
+    ""|*[!0-9]*) log "invalid tree boot serial — skipping"; exit 0 ;;
 esac
-case "$treeserial" in
-    */*) log "invalid tree serial — skipping"; exit 0 ;;
+case "$treebootserial" in
+    */*) log "invalid tree boot serial — skipping"; exit 0 ;;
 esac
 
-deployment_id="$stateroot/$bootcsum/$treeserial"
+# The ostree= boot checksum identifies boot artifacts, not the complete
+# deployment tree. Two images can therefore share BOOTCSUM while /usr differs.
+# libostree resolves the bootlink symlink and parses its target basename as
+# CHECKSUM.DEPLOYSERIAL; mirror that here so any immutable tree change invalidates
+# our disposable /usr cache.
+deployment_target=""
+if ! deployment_target="$(readlink -- "$deploy_path" 2>/dev/null)"; then
+    log "cannot resolve OSTree bootlink '$deploy_path' — skipping"
+    exit 0
+fi
+deployment_target="${deployment_target%/}"
+deploy_basename="${deployment_target##*/}"
+case "$deploy_basename" in
+    *.*) ;;
+    *) log "invalid OSTree deployment target '$deployment_target' — skipping"; exit 0 ;;
+esac
+commit="${deploy_basename%.*}"
+deployserial="${deploy_basename##*.}"
+case "$commit" in
+    ""|*[!0-9a-f]*) log "invalid deployment checksum — skipping"; exit 0 ;;
+esac
+if [ "${#commit}" -ne 64 ]; then
+    log "invalid deployment checksum length — skipping"
+    exit 0
+fi
+case "$deployserial" in
+    ""|*[!0-9]*) log "invalid deploy serial — skipping"; exit 0 ;;
+esac
+
+deployment_id="$stateroot/$commit/$deployserial"
 
 already_mounted=0
 while read -r _source target fstype _rest; do
