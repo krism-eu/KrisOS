@@ -5,10 +5,14 @@ set -u
 fail=0
 recovery=0
 cmdline=""
+deploy_path=""
 IFS= read -r cmdline < /proc/cmdline || true
 read -r -a tokens <<< "$cmdline"
 for token in "${tokens[@]}"; do
     [ "$token" != "raku-kris.overlay=off" ] || recovery=1
+    case "$token" in
+        ostree=*) deploy_path="${token#ostree=}" ;;
+    esac
 done
 
 check() {
@@ -33,9 +37,26 @@ if [ "$recovery" -eq 1 ]; then
     # Distinguish recovery from a fully validated normal boot in automation.
     exit 2
 fi
+
+expected_deployment=""
+if [ -n "$deploy_path" ]; then
+    target="$(readlink -- "$deploy_path" 2>/dev/null || true)"
+    target="${target%/}"
+    basename="${target##*/}"
+    rest="${deploy_path#/ostree/}"
+    rest="${rest#*/}"
+    stateroot="${rest%%/*}"
+    commit="${basename%.*}"
+    deployserial="${basename##*.}"
+    if [[ "$commit" =~ ^[0-9a-f]{64}$ ]] && [[ "$deployserial" =~ ^[0-9]+$ ]]; then
+        expected_deployment="$stateroot/$commit/$deployserial"
+    fi
+fi
+
 check "/usr dedicated overlay"    "test \"$(findmnt -T /usr -n -o TARGET)\" = /usr && test \"$(findmnt -T /usr -n -o FSTYPE)\" = overlay"
 check "overlay service active"    "systemctl is-active raku-kris-overlay.service | grep -qx active"
 check "deployment recorded"       "test -s /var/lib/raku-kris/deployment"
+check "deployment identity matches OSTree commit" "test -n \"$expected_deployment\" && grep -Fxq \"$expected_deployment\" /var/lib/raku-kris/deployment"
 check "overlay upper present"     "test -d /var/lib/raku-kris/upper"
 check "overlay work present"      "test -d /var/lib/raku-kris/work"
 check "package intent seed"       "test -e /var/lib/raku-kris/packages.list"
