@@ -48,7 +48,8 @@ def sync_dir(path):
 
 
 def guard():
-    # Read the live mount, not merely a stale deployment marker.
+    # The overlay hook owns deployment identity and invalidation. rk validates
+    # only the live writable overlay and transaction-recovery state here.
     mount = output('findmnt', '-rn', '-M', '/usr', '-o', 'ID,FSTYPE,OPTIONS')
     fields = mount.split()
     if len(fields) != 3 or fields[1] != 'overlay':
@@ -57,12 +58,8 @@ def guard():
     for option in ('rw', 'upperdir=/var/lib/raku-kris/upper', 'workdir=/var/lib/raku-kris/work'):
         if option not in opts:
             raise RuntimeError(f'Unexpected /usr mount: missing {option}')
-    token = next((x[7:] for x in Path('/proc/cmdline').read_text().split() if x.startswith('ostree=')), '')
-    match = re.fullmatch(r'/ostree/boot\.[01]/([A-Za-z0-9._-]+)/([0-9a-f]+)/([0-9]+)', token)
-    if not match or match[1] in ('.', '..'):
-        raise RuntimeError('Unrecognized booted deployment')
-    if (STATE / 'deployment').read_text().strip() != '/'.join(match.groups()):
-        raise RuntimeError('Overlay belongs to a different deployment')
+    if (STATE / 'pending').exists():
+        raise RuntimeError('Interrupted transaction requires reboot before rk runs again')
     if output('getenforce') != 'Enforcing' or 'object_r:usr_t:' not in output('ls', '-Zd', '/usr'):
         raise RuntimeError('SELinux must be enforcing and /usr labeled usr_t')
     dbpath = Path(output('rpm', '--eval', '%{_dbpath}')).resolve()
@@ -116,7 +113,7 @@ def transact(command, requested):
     owned = names(OWNED.read_text().splitlines())
     intent = names((STATE / 'packages.list').read_text().splitlines())
     if (STATE / 'pending').exists():
-        raise RuntimeError('An interrupted transaction requires reboot before rk sync')
+        raise RuntimeError('Interrupted transaction requires reboot before rk runs again')
     if command != 'sync' and (STATE / 'needs-sync').exists():
         raise RuntimeError('Run rk sync before changing package requests')
     if command == 'add' and requested & owned:
@@ -195,7 +192,10 @@ def transact(command, requested):
         if int(result) != 0:
             raise RuntimeError('RPM transaction failed: ' + tx.transaction_result_to_string(result))
         check_base(owned)
-        if guard() != before:
+        # pending is expected during the committed transaction itself; validate
+        # the mount directly rather than re-entering guard() until it is cleared.
+        after = output('findmnt', '-rn', '-M', '/usr', '-o', 'ID,FSTYPE,OPTIONS')
+        if after != before:
             raise RuntimeError('/usr mount changed during RPM transaction')
         for name in install:
             subprocess.run(['rpm', '-q', name], check=True)
