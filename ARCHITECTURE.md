@@ -52,17 +52,33 @@ stato host secondo le normali semantiche bootc.
 OSTree passa normalmente una riga kernel del tipo:
 
 ```text
-ostree=/ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREESERIAL
+ostree=/ostree/boot.BOOTVERSION/OSNAME/BOOTCSUM/TREEBOOTSERIAL
 ```
 
-`boot.0` / `boot.1` è una generazione volatile e non fa parte dell'identità
-persistita. M0 salva invece:
+`BOOTCSUM` identifica gli artefatti di boot (kernel/initramfs/device tree), non
+l'intero filesystem immutabile. Due immagini con lo stesso kernel e initramfs
+possono quindi avere lo stesso `BOOTCSUM` pur contenendo `/usr` differenti: non
+è sufficiente per decidere se una cache OverlayFS è ancora valida.
+
+In real-root userspace il pathname indicato da `ostree=` è un bootlink OSTree.
+raku-Kris legge quel symlink e usa il basename del target, nel formato:
 
 ```text
-OSNAME/BOOTCSUM/TREESERIAL
+COMMIT.DEPLOYSERIAL
 ```
 
-Lo stateroot viene ricavato dalla cmdline e validato; non è hard-coded.
+Il `COMMIT` è il checksum del commit OSTree che rappresenta l'intero tree del
+deployment. M0 persiste quindi:
+
+```text
+OSNAME/COMMIT/DEPLOYSERIAL
+```
+
+`boot.0` / `boot.1`, `BOOTCSUM` e `TREEBOOTSERIAL` servono a localizzare e
+validare il bootlink ma non fanno parte dell'identità persistita. Lo stateroot
+viene ricavato dalla cmdline e validato; commit e deploy serial vengono ricavati
+dal target del bootlink. In questo modo qualsiasi cambiamento dell'immagine
+immutabile, anche soltanto sotto `/usr` e senza cambio kernel, invalida la cache.
 
 ## Cambio deployment e first boot
 
