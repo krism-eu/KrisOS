@@ -160,6 +160,20 @@ RUN set -eux; \
       /tmp/fedora-base-nevra.before \
       /tmp/fedora-base-nevra.after
 
+# Add Fedora bindings without replacing any image package.
+RUN set -eux; \
+    excludes="$(rpm -qa --qf '%{NAME}\n' | sort -u | paste -sd,)"; \
+    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > /tmp/rk-before; \
+    dnf5 -y --setopt=install_weak_deps=False --setopt="excludepkgs=$excludes" install python3-libdnf5; \
+    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > /tmp/rk-after; \
+    test -z "$(comm -23 /tmp/rk-before /tmp/rk-after)"; \
+    python3 -c 'import libdnf5; assert hasattr(libdnf5.base.Base, "lock_system_repo")'; \
+    dnf5 clean all; rm -f /tmp/rk-before /tmp/rk-after
+COPY bin/rk /usr/bin/rk
+RUN chmod 0755 /usr/bin/rk
+COPY systemd/raku-kris-sync.service /usr/lib/systemd/system/raku-kris-sync.service
+RUN systemctl enable raku-kris-sync.service
+
 # Persistent /usr overlay. Mount it in early real-root userspace rather than in
 # initrd: OSTree has already exposed writable /var, while local-fs.target still
 # holds normal services behind the overlay setup.
@@ -177,6 +191,7 @@ RUN set -eux; \
       | LC_ALL=C sort -u \
       > /usr/share/raku-kris/owned-packages.txt; \
     test -s /usr/share/raku-kris/owned-packages.txt; \
+    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sed '/^gpg-pubkey\t/d' | LC_ALL=C sort -u > /usr/share/raku-kris/owned-nevra.txt; \
     if grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt; then \
       echo 'gpg-pubkey must not appear in immutable ownership snapshot' >&2; \
       exit 1; \

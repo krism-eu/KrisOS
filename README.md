@@ -75,3 +75,5 @@ invece ricreata vuota e viene armato `needs-sync` per M1.
 
 `RakuKrisOS` resta un archivio/laboratorio separato. `raku-Kris` è una nuova
 implementazione con storia e contratto propri.
+
+Package-layer implementation candidate: see [rk commands and limits](docs/RK.md).

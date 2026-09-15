@@ -108,7 +108,16 @@ if [ -f "$saved" ]; then
 fi
 
 changed=0
-if [ -z "$saved_id" ]; then
+if [ -f "$state/pending" ]; then
+    changed=1
+    if ! wipe_cache "interrupted package transaction"; then
+        exit 0
+    fi
+    if ! : > "$needs_sync" || ! rm -f -- "$state/pending"; then
+        log "WARNING: cannot arm package recovery — continuing on base /usr"
+        exit 0
+    fi
+elif [ -z "$saved_id" ]; then
     changed=1
     if ! wipe_cache "deployment identity not initialized"; then
         exit 0

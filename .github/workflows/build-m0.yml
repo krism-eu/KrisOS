@@ -2,7 +2,7 @@ name: Build M0
 
 on:
   push:
-    branches: [main]
+    branches: [main, implement-rk]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           bash -n systemd/raku-kris-overlay.sh
           bash -n tests/boot-check.sh
+          python3 tests/test_rk.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           grep -Fq 'state=/var/lib/raku-kris' systemd/raku-kris-overlay.sh
           grep -Fq 'After=ostree-remount.service' systemd/raku-kris-overlay.service
@@ -67,7 +68,7 @@ jobs:
             --pull=always \
             "${args[@]}" \
             -t localhost/raku-kris:m0 \
-            .
+            . 2>&1 | tee build.log
 
       - name: Inspect built image
         shell: bash
@@ -76,3 +77,23 @@ jobs:
           sudo podman inspect localhost/raku-kris:m0 --format '{{.Id}}'
           test "$(sudo podman inspect localhost/raku-kris:m0 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
           test "$(sudo podman inspect localhost/raku-kris:m0 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
+
+      - name: Real RPM package layer integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman run --rm --security-opt label=disable \
+            -e RK_DISPOSABLE_CONTAINER_TEST=1 \
+            -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
+            --entrypoint python3 localhost/raku-kris:m0 /tmp/test-rk.py \
+            2>&1 | tee rk-integration.log
+
+      - name: Preserve complete logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-and-rk-logs
+          path: |
+            build.log
+            rk-integration.log
+          if-no-files-found: ignore
