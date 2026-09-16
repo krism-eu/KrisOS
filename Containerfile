@@ -5,6 +5,21 @@
 # compatibility tests may override BASE_IMAGE explicitly without weakening the
 # reproducible default.
 ARG BASE_IMAGE=quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:03d9e53e46040b1d91441f7776a987dfc136ceb39500daa605237eb0cd211207
+
+# Fedora 44 keeps the r8169 RTL8168H Ethernet blob in the broad linux-firmware
+# package rather than realtek-firmware. Use a disposable stage to source only
+# the one required blob (plus its license material) from Fedora's signed RPM;
+# linux-firmware itself never enters the final image.
+FROM ${BASE_IMAGE} AS rtl8168-firmware-source
+RUN set -eux; \
+    dnf5 -y --setopt=install_weak_deps=False install linux-firmware; \
+    test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
+    rpm -qf /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz | grep -q '^linux-firmware-'; \
+    test -d /usr/share/licenses/linux-firmware; \
+    install -d -m 0755 /out/firmware/rtl_nic /out/licenses; \
+    cp -a /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz /out/firmware/rtl_nic/; \
+    cp -a /usr/share/licenses/linux-firmware/. /out/licenses/
+
 FROM ${BASE_IMAGE}
 
 ARG RELEASE=0.1.0-m1
@@ -13,6 +28,11 @@ LABEL org.opencontainers.image.version="${RELEASE}"
 LABEL org.opencontainers.image.description="Fedora 44 bootc Minimal + persistent additive /usr overlay and rk package layer (M1)"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
+
+# Install only the hardware blob observed missing on the validated RTL8168H
+# system. Keep provenance/license material while avoiding the broad firmware RPM.
+COPY --from=rtl8168-firmware-source /out/firmware/rtl_nic/rtl8168h-2.fw.xz /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz
+COPY --from=rtl8168-firmware-source /out/licenses/ /usr/share/licenses/raku-rtl8168-firmware/
 
 # Global DNF5 policy: raku-Kris is x86_64/noarch only. User-facing package
 # operations in M1 inherit this and the wrapper will reject attempts to bypass
@@ -102,7 +122,6 @@ RUN set -eux; \
       bluez \
       bluez-obexd \
       mt7xxx-firmware \
-      realtek-firmware \
       amd-gpu-firmware \
       amd-ucode-firmware \
       mesa-dri-drivers \
@@ -126,8 +145,6 @@ RUN set -eux; \
       plasma-firewall-firewalld \
       firewalld \
       iproute \
-      iputils \
-      pciutils \
       tar \
       bash-completion \
       ntfs-3g \
@@ -137,7 +154,7 @@ RUN set -eux; \
       zram-generator-defaults; \
     rpm -q --whatprovides mesa-va-drivers; \
     test -e /usr/lib64/dri/radeonsi_drv_video.so; \
-    find /usr/lib/firmware/rtl_nic -maxdepth 1 -name 'rtl8168h-2.fw*' -print -quit | grep -q .; \
+    test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
     assert_absent linux-firmware; \
     if rpm -qa --qf '%{ARCH}\n' | grep -qx i686; then \
       echo 'i686 packages are not allowed in raku-Kris' >&2; \
@@ -273,8 +290,6 @@ RUN set -eux; \
     test -x /usr/bin/powerprofilesctl; \
     test -x /usr/bin/os-prober; \
     test -x /usr/bin/ntfsresize; \
-    test -x /usr/bin/ping; \
-    test -x /usr/bin/lspci; \
     test -x /usr/libexec/raku-kris-overlay; \
     test -f /usr/lib/systemd/system/raku-kris-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
@@ -304,8 +319,9 @@ RUN set -eux; \
     grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
     grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
-    rpm -q xcb-util-cursor realtek-firmware iputils pciutils; \
-    find /usr/lib/firmware/rtl_nic -maxdepth 1 -name 'rtl8168h-2.fw*' -print -quit | grep -q .; \
+    rpm -q xcb-util-cursor; \
+    test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
+    test -d /usr/share/licenses/raku-rtl8168-firmware; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
