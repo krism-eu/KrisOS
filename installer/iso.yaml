@@ -1,0 +1,6 @@
+label: "KRISOS-F45"
+grub2:
+  entries:
+    - name: "Install KrisOS"
+      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=KRISOS-F45 console=tty0 inst.graphical inst.wait_for_disks=0 inst.noibft selinux=0 rhgb quiet"
+      initrd: "/images/pxeboot/initrd.img"
