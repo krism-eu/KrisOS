@@ -38,7 +38,7 @@ No KrisOS payload image URL is embedded in the ISO.
 
 ## GitHub generation
 
-The `Build Installer ISO` workflow is manual (`workflow_dispatch`). It invokes the same `installer/build-installer.sh` used locally and uploads the generated ISO plus `SHA256SUMS` as a GitHub Actions artifact.
+Installer-related pull requests run the `Build Installer ISO` workflow automatically for pre-merge validation. On `main`, the same workflow can be launched manually with `workflow_dispatch`. In both cases it invokes the same `installer/build-installer.sh` used locally; successful runs verify and upload the generated ISO plus `SHA256SUMS` as a GitHub Actions artifact.
 
 This workflow generates installer media only. It does not publish or replace the KrisOS bootc payload image.
 
