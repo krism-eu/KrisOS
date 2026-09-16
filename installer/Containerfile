@@ -1,11 +1,8 @@
 FROM quay.io/fedora/fedora-bootc:45
 
-ARG RAKU_IMAGE
-RUN test -n "${RAKU_IMAGE}"
-
 # Fedora 45 Anaconda runtime for a generic bootc installer ISO.
-# Keep this image separate from the installed raku-Kris payload.
-RUN dnf install -qy \
+# The installer ISO is intentionally independent from the raku-Kris payload.
+RUN dnf install -qy --setopt=install_weak_deps=False \
     anaconda \
     anaconda-install-img-deps \
     anaconda-dracut \
@@ -24,10 +21,10 @@ RUN dnf install -qy \
 # image-builder expects the EFI tree here.
 RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
 
-# ISO metadata and boot arguments.
+# ISO metadata and conservative boot arguments.
 # inst.wait_for_disks=0 removes Anaconda's extra wait; inst.noibft avoids iBFT
-# probing on the desktop hardware we are targeting. We deliberately do not
-# disable generic block/device discovery until Fedora 45 is measured on bare metal.
+# probing. Generic block/device discovery remains enabled until F45 is measured
+# on the physical validation machine.
 RUN mkdir -p /usr/lib/image-builder/bootc && \
     cat > /usr/lib/image-builder/bootc/iso.yaml <<'EOF'
 label: "RAKU-KRIS-F45"
@@ -38,15 +35,14 @@ grub2:
       initrd: "/images/pxeboot/initrd.img"
 EOF
 
-# Interactive install: source image comes from a registry URL supplied at build
-# time. Storage stays interactive on purpose so the user can choose /boot,
-# /, and a separate /var/home without destructive automatic partitioning.
+# Interactive defaults only. The bootc source is deliberately NOT embedded in
+# the ISO. Supply it through a Kickstart selected at boot with inst.ks=https://...
+# so the same installer ISO can install any chosen raku-Kris tag or digest.
 RUN printf '%s\n' \
     'graphical' \
     'lang it_IT.UTF-8' \
     'keyboard --vckeymap=it --xlayouts=it' \
     'timezone Europe/Rome --utc' \
-    "bootc --source-imgref=registry:${RAKU_IMAGE} --target-imgref=${RAKU_IMAGE}" \
     > /usr/share/anaconda/interactive-defaults.ks
 
 # Minimal lorax-equivalent setup required by the generic ISO path.
