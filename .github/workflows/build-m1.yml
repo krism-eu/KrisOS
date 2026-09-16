@@ -43,6 +43,8 @@ jobs:
           grep -Eq '^ARG KRISCC_COMMIT=[0-9a-f]{40}$' Containerfile
           grep -Fq 'https://github.com/krism-eu/krisCC.git' Containerfile
           grep -Fxq 'ARG RELEASE=0.1.0-m1' Containerfile
+          grep -Fq 'rpm -q krisCC' Containerfile
+          grep -Fq 'grep -Fxq krisCC /usr/share/krisos/owned-packages.txt' Containerfile
           grep -Fxq '[*]' build_files/90-krisos-privacy.repo
           grep -Fxq 'countme=false' build_files/90-krisos-privacy.repo
           grep -Fxq '[UserFeedback]' build_files/KDE-UserFeedback.conf
@@ -92,6 +94,14 @@ jobs:
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
+          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:m1 -lc '
+            rpm -q krisCC &&
+            test -x /usr/bin/krisCC &&
+            grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
+            grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
+            grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&
+            grep -Fxq "Exec=/usr/bin/krisCC --background" /etc/xdg/autostart/krisCC-background.desktop
+          '
 
       - name: Real RPM package layer integration
         shell: bash
