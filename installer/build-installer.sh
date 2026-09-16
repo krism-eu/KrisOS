@@ -6,18 +6,6 @@ if [[ $EUID -eq 0 ]]; then
     exit 1
 fi
 
-RAKU_IMAGE="${RAKU_IMAGE:-}"
-if [[ -z "$RAKU_IMAGE" ]]; then
-    echo "Set RAKU_IMAGE to the registry image to install." >&2
-    echo "Example: RAKU_IMAGE=registry.example/raku-kris:tag ./installer/build-installer.sh" >&2
-    exit 1
-fi
-
-if [[ "$RAKU_IMAGE" =~ [[:space:]] ]] || [[ "$RAKU_IMAGE" == registry:* ]]; then
-    echo "RAKU_IMAGE must be a plain OCI registry reference without spaces or a registry: prefix." >&2
-    exit 1
-fi
-
 for cmd in podman image-builder; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         echo "Missing required command: $cmd" >&2
@@ -31,10 +19,9 @@ installer_image="localhost/raku-kris-installer:f45"
 
 mkdir -p "$output_dir"
 
-printf 'Building Fedora 45 installer runtime for payload: %s\n' "$RAKU_IMAGE"
+printf 'Building generic Fedora 45 raku-Kris installer runtime...\n'
 sudo podman build \
     --pull=always \
-    --build-arg "RAKU_IMAGE=$RAKU_IMAGE" \
     -f "$repo_root/installer/Containerfile" \
     -t "$installer_image" \
     "$repo_root/installer"
