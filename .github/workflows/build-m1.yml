@@ -57,6 +57,9 @@ jobs:
           grep -Fq 'Before=local-fs.target shutdown.target' systemd/krisos-overlay.service
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
+          grep -Fxq 'graphical' kickstart/krisos.ks
+          grep -Fxq 'bootc --source-imgref=registry:ghcr.io/krism-eu/krisos:m1 --target-imgref=ghcr.io/krism-eu/krisos:m1' kickstart/krisos.ks
+          ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup)([[:space:]]|$)' kickstart/krisos.ks
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
 
@@ -155,6 +158,8 @@ jobs:
           set -euo pipefail
           sudo podman build \
             --pull=always \
+            --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS' \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             -t localhost/krisos:m1 \
             . 2>&1 | tee publish-build.log
 
@@ -166,6 +171,8 @@ jobs:
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/krism-eu/KrisOS"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
           sudo podman run --rm --entrypoint /bin/bash localhost/krisos:m1 -lc '
             rpm -q krisCC &&
             test -x /usr/bin/krisCC &&
