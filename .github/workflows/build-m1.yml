@@ -24,6 +24,8 @@ jobs:
     name: Fedora 44 pinned build
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -55,6 +57,9 @@ jobs:
           grep -Fq 'Before=local-fs.target shutdown.target' systemd/krisos-overlay.service
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
+          grep -Fxq 'graphical' kickstart/krisos.ks
+          grep -Fxq 'bootc --source-imgref=registry:ghcr.io/krism-eu/krisos:m1 --target-imgref=ghcr.io/krism-eu/krisos:m1' kickstart/krisos.ks
+          ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup)([[:space:]]|$)' kickstart/krisos.ks
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
 
@@ -121,4 +126,128 @@ jobs:
           path: |
             build.log
             rk-integration.log
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish M1 to GHCR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout exact tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install Podman
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman
+          sudo podman version
+
+      - name: Rebuild release image from pinned source
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman build \
+            --pull=always \
+            --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS' \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t localhost/krisos:m1 \
+            . 2>&1 | tee publish-build.log
+
+      - name: Revalidate release image
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/krism-eu/KrisOS"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
+          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:m1 -lc '
+            rpm -q krisCC &&
+            test -x /usr/bin/krisCC &&
+            grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
+            grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
+            grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&
+            grep -Fxq "Exec=/usr/bin/krisCC --background" /etc/xdg/autostart/krisCC-background.desktop
+          '
+          sudo podman run --rm --security-opt label=disable \
+            -e RK_DISPOSABLE_CONTAINER_TEST=1 \
+            -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
+            --entrypoint python3 localhost/krisos:m1 /tmp/test-rk.py \
+            2>&1 | tee publish-rk-integration.log
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | sudo podman login ghcr.io --username "$GHCR_USER" --password-stdin
+
+      - name: Publish mutable and immutable tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          immutable="ghcr.io/krism-eu/krisos:${GITHUB_SHA}"
+          mutable="ghcr.io/krism-eu/krisos:m1"
+
+          sudo podman tag localhost/krisos:m1 "$immutable"
+          sudo podman tag localhost/krisos:m1 "$mutable"
+
+          sudo podman push --digestfile publish.digest "$immutable" 2>&1 | tee publish-immutable.log
+          sudo podman push "$mutable" 2>&1 | tee publish-m1.log
+
+          test -s publish.digest
+          grep -Eq '^sha256:[0-9a-f]{64}$' publish.digest
+          printf 'Published digest: %s\n' "$(cat publish.digest)"
+
+      - name: Verify anonymous GHCR pull
+        shell: bash
+        run: |
+          set -euo pipefail
+          immutable="ghcr.io/krism-eu/krisos:${GITHUB_SHA}"
+          mutable="ghcr.io/krism-eu/krisos:m1"
+          expected="$(cat publish.digest)"
+
+          sudo podman logout ghcr.io || true
+          sudo podman rmi -f "$immutable" "$mutable" localhost/krisos:m1 || true
+
+          authfile="$(mktemp)"
+          trap 'rm -f "$authfile"' EXIT
+          printf '{"auths":{}}\n' > "$authfile"
+
+          sudo podman pull --authfile "$authfile" "$immutable" 2>&1 | tee anonymous-pull-immutable.log
+          immutable_digest="$(sudo podman inspect "$immutable" --format '{{.Digest}}')"
+          test "$immutable_digest" = "$expected"
+
+          sudo podman rmi -f "$immutable"
+          sudo podman pull --authfile "$authfile" "$mutable" 2>&1 | tee anonymous-pull-m1.log
+          mutable_digest="$(sudo podman inspect "$mutable" --format '{{.Digest}}')"
+          test "$mutable_digest" = "$expected"
+
+      - name: Preserve publication logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m1-ghcr-publication-${{ github.sha }}
+          path: |
+            publish-build.log
+            publish-rk-integration.log
+            publish.digest
+            publish-immutable.log
+            publish-m1.log
+            anonymous-pull-immutable.log
+            anonymous-pull-m1.log
           if-no-files-found: ignore
