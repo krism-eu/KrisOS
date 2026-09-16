@@ -72,11 +72,13 @@ To select the image without rebuilding the ISO, boot the ISO, edit the kernel co
 inst.ks=https://host.example/krisos.ks
 ```
 
-The remote Kickstart can contain:
+The remote Kickstart should set both the installation source and the update target:
 
 ```text
-bootc --source-imgref=registry:REGISTRY/IMAGE:TAG
+bootc --source-imgref=registry:REGISTRY/IMAGE:TAG --target-imgref=REGISTRY/IMAGE:TAG
 ```
+
+`--source-imgref` requires the transport prefix (`registry:`). `--target-imgref` deliberately does not use that prefix and becomes the reference used by the installed system for subsequent bootc updates.
 
 This is the V1 mechanism for selecting the bootc URL; no custom Anaconda UI is added.
 
