@@ -16,7 +16,9 @@ output_dir="$repo_root/installer/output"
 installer_image="localhost/krisos-installer:f45"
 image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder-cli:latest}"
 
-rm -rf "$output_dir"
+# A failed privileged builder run may leave root-owned partial output behind.
+# The path is fixed below the repository and is always recreated from scratch.
+sudo rm -rf -- "$output_dir"
 mkdir -p "$output_dir"
 
 printf 'Building generic Fedora 45 KrisOS installer runtime...\n'
