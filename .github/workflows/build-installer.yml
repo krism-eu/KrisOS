@@ -2,6 +2,11 @@ name: Build Installer ISO
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - '.github/workflows/build-installer.yml'
 
 permissions:
   contents: read
