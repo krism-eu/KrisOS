@@ -36,14 +36,14 @@ RUN set -eux; \
     git -C /src/krisCC fetch --depth=1 origin "$KRISCC_COMMIT"; \
     git -C /src/krisCC checkout --detach FETCH_HEAD; \
     test "$(git -C /src/krisCC rev-parse HEAD)" = "$KRISCC_COMMIT"; \
-    mkdir -p /root/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS} /out; \
+    mkdir -p /tmp/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS} /out; \
     tar -C /src/krisCC \
       --exclude=.git \
       --transform='s,^,krisCC-0.4.0/,' \
-      -czf /root/rpmbuild/SOURCES/krisCC-0.4.0.tar.gz .; \
-    cp /src/krisCC/packaging/krisCC.spec /root/rpmbuild/SPECS/krisCC.spec; \
-    rpmbuild -bb /root/rpmbuild/SPECS/krisCC.spec; \
-    rpm_path="$(find /root/rpmbuild/RPMS -type f -name 'krisCC-0.4.0-9*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' -print -quit)"; \
+      -czf /tmp/rpmbuild/SOURCES/krisCC-0.4.0.tar.gz .; \
+    cp /src/krisCC/packaging/krisCC.spec /tmp/rpmbuild/SPECS/krisCC.spec; \
+    rpmbuild --define '_topdir /tmp/rpmbuild' -bb /tmp/rpmbuild/SPECS/krisCC.spec; \
+    rpm_path="$(find /tmp/rpmbuild/RPMS -type f -name 'krisCC-0.4.0-9*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' -print -quit)"; \
     test -n "$rpm_path"; \
     cp "$rpm_path" /out/krisCC.rpm
 
