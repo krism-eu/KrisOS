@@ -1,0 +1,71 @@
+name: Build Installer ISO
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: Fedora 45 generic installer ISO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate installer sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n installer/build-installer.sh
+          grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
+          grep -Fq 'label: "KRISOS-F45"' installer/Containerfile
+          grep -Fq 'inst.wait_for_disks=0' installer/Containerfile
+          grep -Fq 'inst.noibft' installer/Containerfile
+          grep -Fq 'bootc-generic-iso' installer/build-installer.sh
+          grep -Fq 'ghcr.io/osbuild/image-builder-cli:latest' installer/build-installer.sh
+          ! grep -Eq 'bootc --source-imgref=|REGISTRY/IMAGE' installer/Containerfile
+
+      - name: Install Podman
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman
+          sudo podman version
+
+      - name: Build installer ISO
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash installer/build-installer.sh 2>&1 | tee installer-build.log
+
+      - name: Inspect generated artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s installer/output/SHA256SUMS
+          find installer/output -type f -name '*.iso' -print -quit | grep -q .
+          (
+            cd installer/output
+            sha256sum --check SHA256SUMS
+          )
+          find installer/output -maxdepth 3 -type f -printf '%s %p\n' | sort -n
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: krisos-installer-f45-${{ github.sha }}
+          path: |
+            installer/output/**
+            installer-build.log
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
