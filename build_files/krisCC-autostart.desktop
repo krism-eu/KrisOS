@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=krisCC Background Service
+Comment=Start the KrisOS control center background process
+Exec=/usr/bin/krisCC --background
+Icon=krisCC
+OnlyShowIn=KDE;
+NoDisplay=true
+StartupNotify=false
+Terminal=false
