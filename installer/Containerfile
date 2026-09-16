@@ -1,0 +1,82 @@
+FROM quay.io/fedora/fedora-bootc:45
+
+ARG RAKU_IMAGE
+RUN test -n "${RAKU_IMAGE}"
+
+# Fedora 45 Anaconda runtime for a generic bootc installer ISO.
+# Keep this image separate from the installed raku-Kris payload.
+RUN dnf install -qy \
+    anaconda \
+    anaconda-install-img-deps \
+    anaconda-dracut \
+    dracut-config-generic \
+    dracut-network \
+    net-tools \
+    grub2-efi-x64-cdboot \
+    plymouth \
+    default-fonts-core-sans \
+    default-fonts-other-sans \
+    google-noto-sans-cjk-fonts \
+    xorrisofs \
+    squashfs-tools && \
+    dnf clean all
+
+# image-builder expects the EFI tree here.
+RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
+
+# ISO metadata and boot arguments.
+# inst.wait_for_disks=0 removes Anaconda's extra wait; inst.noibft avoids iBFT
+# probing on the desktop hardware we are targeting. We deliberately do not
+# disable generic block/device discovery until Fedora 45 is measured on bare metal.
+RUN mkdir -p /usr/lib/image-builder/bootc && \
+    cat > /usr/lib/image-builder/bootc/iso.yaml <<'EOF'
+label: "RAKU-KRIS-F45"
+grub2:
+  entries:
+    - name: "Install raku-Kris"
+      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=RAKU-KRIS-F45 console=tty0 inst.graphical inst.wait_for_disks=0 inst.noibft selinux=0 rhgb quiet"
+      initrd: "/images/pxeboot/initrd.img"
+EOF
+
+# Interactive install: source image comes from a registry URL supplied at build
+# time. Storage stays interactive on purpose so the user can choose /boot,
+# /, and a separate /var/home without destructive automatic partitioning.
+RUN printf '%s\n' \
+    'graphical' \
+    'lang it_IT.UTF-8' \
+    'keyboard --vckeymap=it --xlayouts=it' \
+    'timezone Europe/Rome --utc' \
+    "bootc --source-imgref=registry:${RAKU_IMAGE} --target-imgref=${RAKU_IMAGE}" \
+    > /usr/share/anaconda/interactive-defaults.ks
+
+# Minimal lorax-equivalent setup required by the generic ISO path.
+RUN echo "install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda" >> /etc/passwd && \
+    echo "install::14438:0:99999:7:::" >> /etc/shadow && \
+    passwd -d root
+
+RUN mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives && \
+    mv /etc/yum.repos.d /etc/anaconda.repos.d && \
+    ln -s /lib/systemd/system/anaconda.target /etc/systemd/system/default.target && \
+    rm -v /usr/lib/systemd/system-generators/systemd-gpt-auto-generator
+
+RUN ln -s /usr/lib/systemd/system/anaconda-shell@.service /usr/lib/systemd/system/autovt@.service
+
+RUN mkdir -p /usr/lib/systemd/logind.conf.d && \
+    cat > /usr/lib/systemd/logind.conf.d/anaconda-shell.conf <<'EOF'
+[Login]
+ReserveVT=2
+EOF
+
+RUN mkdir "$(realpath /root)" && \
+    kernel="$(kernel-install list --json pretty | jq -r '.[] | select(.has_kernel == true) | .version')" && \
+    test -n "${kernel}" && \
+    DRACUT_NO_XATTR=1 dracut --force -v --zstd --reproducible --no-hostonly \
+        --add "anaconda" \
+        "/usr/lib/modules/${kernel}/initramfs.img" "${kernel}"
+
+# Anaconda runs as root in the live environment; allow its PipeWire session.
+RUN mkdir -p /etc/systemd/user/pipewire.service.d /etc/systemd/user/pipewire.socket.d && \
+    printf '[Unit]\nConditionUser=\n' > /etc/systemd/user/pipewire.service.d/allowroot.conf && \
+    printf '[Unit]\nConditionUser=\n' > /etc/systemd/user/pipewire.socket.d/allowroot.conf
+
+RUN bootc container lint
