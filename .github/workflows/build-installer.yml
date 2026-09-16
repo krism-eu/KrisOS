@@ -31,12 +31,15 @@ jobs:
           set -euo pipefail
           bash -n installer/build-installer.sh
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
-          grep -Fq 'label: "KRISOS-F45"' installer/Containerfile
-          grep -Fq 'inst.wait_for_disks=0' installer/Containerfile
-          grep -Fq 'inst.noibft' installer/Containerfile
+          grep -Fq 'COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml' installer/Containerfile
+          grep -Fq 'COPY anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf' installer/Containerfile
+          ! grep -Fq "<<'EOF'" installer/Containerfile
+          grep -Fq 'label: "KRISOS-F45"' installer/iso.yaml
+          grep -Fq 'inst.wait_for_disks=0' installer/iso.yaml
+          grep -Fq 'inst.noibft' installer/iso.yaml
           grep -Fq 'bootc-generic-iso' installer/build-installer.sh
           grep -Fq 'ghcr.io/osbuild/image-builder-cli:latest' installer/build-installer.sh
-          ! grep -Eq 'bootc --source-imgref=|REGISTRY/IMAGE' installer/Containerfile
+          ! grep -Eq 'bootc --source-imgref=|REGISTRY/IMAGE' installer/Containerfile installer/iso.yaml
 
       - name: Install Podman
         shell: bash
