@@ -24,16 +24,10 @@ RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
 # ISO metadata and conservative boot arguments.
 # inst.wait_for_disks=0 removes Anaconda's extra wait; inst.noibft avoids iBFT
 # probing. Generic block/device discovery remains enabled until F45 is measured
-# on the physical validation machine.
-RUN mkdir -p /usr/lib/image-builder/bootc && \
-    cat > /usr/lib/image-builder/bootc/iso.yaml <<'EOF'
-label: "KRISOS-F45"
-grub2:
-  entries:
-    - name: "Install KrisOS"
-      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=KRISOS-F45 console=tty0 inst.graphical inst.wait_for_disks=0 inst.noibft selinux=0 rhgb quiet"
-      initrd: "/images/pxeboot/initrd.img"
-EOF
+# on the physical validation machine. Keep configuration as normal source files:
+# osbuild installer Containerfiles deliberately avoid shell heredocs.
+RUN mkdir -p /usr/lib/image-builder/bootc
+COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml
 
 # Interactive defaults only. The bootc source is deliberately NOT embedded in
 # the ISO. Supply it through a Kickstart selected at boot with inst.ks=https://...
@@ -57,11 +51,8 @@ RUN mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives && \
 
 RUN ln -s /usr/lib/systemd/system/anaconda-shell@.service /usr/lib/systemd/system/autovt@.service
 
-RUN mkdir -p /usr/lib/systemd/logind.conf.d && \
-    cat > /usr/lib/systemd/logind.conf.d/anaconda-shell.conf <<'EOF'
-[Login]
-ReserveVT=2
-EOF
+RUN mkdir -p /usr/lib/systemd/logind.conf.d
+COPY anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
 
 RUN mkdir "$(realpath /root)" && \
     kernel="$(kernel-install list --json pretty | jq -r '.[] | select(.has_kernel == true) | .version')" && \
