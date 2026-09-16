@@ -239,8 +239,8 @@ RUN set -eux; \
     grep -Fxq 'AutoEnable=false' /etc/bluetooth/main.conf; \
     test -f /etc/xdg/autostart/geoclue-demo-agent.desktop; \
     grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop || printf '\nHidden=true\n' >> /etc/xdg/autostart/geoclue-demo-agent.desktop; \
-    firewall-offline-cmd --zone=public --remove-service=ssh; \
-    firewall-offline-cmd --zone=public --remove-service=mdns; \
+    firewall-offline-cmd --zone=public --remove-service-from-zone=ssh; \
+    firewall-offline-cmd --zone=public --remove-service-from-zone=mdns; \
     systemctl enable raku-kris-overlay.service; \
     systemctl enable raku-kris-sync.service; \
     systemctl enable --force plasmalogin.service; \
