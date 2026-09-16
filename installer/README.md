@@ -13,15 +13,34 @@ This directory contains the minimal installer path for KrisOS.
 
 ## Build
 
-The installer build requires `podman` and the current `image-builder` CLI on the host.
+The local installer build requires only `podman`. Image Builder itself runs from the official container image so local and GitHub Actions builds use the same path.
+
 Build the generic installer ISO with:
 
 ```text
 bash installer/build-installer.sh
 ```
 
-The script builds a Fedora 45 installer runtime and writes the ISO artifacts below `installer/output/`.
-No KrisOS image URL is embedded in the ISO.
+The script:
+
+1. builds the Fedora 45 installer runtime;
+2. runs the containerized Image Builder;
+3. creates a `bootc-generic-iso` below `installer/output/`;
+4. writes `installer/output/SHA256SUMS` for every generated artifact.
+
+By default the builder image is `ghcr.io/osbuild/image-builder-cli:latest`. It can be overridden explicitly for compatibility testing or pinning:
+
+```text
+IMAGE_BUILDER_IMAGE=ghcr.io/osbuild/image-builder-cli:TAG bash installer/build-installer.sh
+```
+
+No KrisOS payload image URL is embedded in the ISO.
+
+## GitHub generation
+
+The `Build Installer ISO` workflow is manual (`workflow_dispatch`). It invokes the same `installer/build-installer.sh` used locally and uploads the generated ISO plus `SHA256SUMS` as a GitHub Actions artifact.
+
+This workflow generates installer media only. It does not publish or replace the KrisOS bootc payload image.
 
 ## Installation layout
 
@@ -64,3 +83,5 @@ This is the V1 mechanism for selecting the bootc URL; no custom Anaconda UI is a
 ## Security note
 
 The live installer entry currently uses `selinux=0`, matching the upstream minimal `bootc-generic-iso` Anaconda example. This affects only the disposable installer runtime, not the installed KrisOS system, whose SELinux policy remains enforcing. We can remove this boot argument later if Fedora 45 testing proves the generic installer path works correctly with SELinux enabled.
+
+`SHA256SUMS` detects corruption or accidental changes to a downloaded installer artifact. It is not a replacement for a future signed-release policy such as Cosign.
