@@ -20,6 +20,33 @@ RUN set -eux; \
     cp -a /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz /out/firmware/rtl_nic/; \
     cp -a /usr/share/licenses/linux-firmware/. /out/licenses/
 
+# Build the KrisOS control center from one exact merged source commit. The
+# compiler toolchain and git never enter the final image; only the RPM does.
+FROM ${BASE_IMAGE} AS kriscc-rpm-builder
+ARG KRISCC_COMMIT=d2926e3b04c25edf600de0a415c5f6cfd7c0e97e
+RUN set -eux; \
+    dnf5 -y --setopt=install_weak_deps=False install \
+      git gcc-c++ cmake ninja-build rpm-build tar \
+      qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kirigami-devel; \
+    dnf5 clean all
+RUN set -eux; \
+    mkdir -p /src/krisCC; \
+    git -C /src/krisCC init; \
+    git -C /src/krisCC remote add origin https://github.com/krism-eu/krisCC.git; \
+    git -C /src/krisCC fetch --depth=1 origin "$KRISCC_COMMIT"; \
+    git -C /src/krisCC checkout --detach FETCH_HEAD; \
+    test "$(git -C /src/krisCC rev-parse HEAD)" = "$KRISCC_COMMIT"; \
+    mkdir -p /root/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS} /out; \
+    tar -C /src/krisCC \
+      --exclude=.git \
+      --transform='s,^,krisCC-0.4.0/,' \
+      -czf /root/rpmbuild/SOURCES/krisCC-0.4.0.tar.gz .; \
+    cp /src/krisCC/packaging/krisCC.spec /root/rpmbuild/SPECS/krisCC.spec; \
+    rpmbuild -bb /root/rpmbuild/SPECS/krisCC.spec; \
+    rpm_path="$(find /root/rpmbuild/RPMS -type f -name 'krisCC-0.4.0-9*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' -print -quit)"; \
+    test -n "$rpm_path"; \
+    cp "$rpm_path" /out/krisCC.rpm
+
 FROM ${BASE_IMAGE}
 
 ARG RELEASE=0.1.0-m1
@@ -36,9 +63,12 @@ COPY --from=rtl8168-firmware-source /out/licenses/ /usr/share/licenses/krisos-rt
 
 # Global DNF5 policy: KrisOS is x86_64/noarch only. User-facing package
 # operations in M1 inherit this and the wrapper will reject attempts to bypass
-# the architecture/exclude policy.
-RUN install -d -m 0755 /etc/dnf/libdnf5.conf.d
+# the architecture/exclude policy. Repository countme is disabled through the
+# DNF5 override layer rather than by editing Fedora-owned repo definitions.
+RUN install -d -m 0755 /etc/dnf/libdnf5.conf.d /etc/dnf/repos.override.d /etc/xdg/KDE
 COPY build_files/dnf-krisos.conf /etc/dnf/libdnf5.conf.d/90-krisos.conf
+COPY build_files/90-krisos-privacy.repo /etc/dnf/repos.override.d/90-krisos-privacy.repo
+COPY build_files/KDE-UserFeedback.conf /etc/xdg/KDE/UserFeedback.conf
 
 # Immutable KrisOS package delta. Fedora owns every RPM already present in
 # the pinned bootc base: exclude those names from the layering transaction and
@@ -181,6 +211,17 @@ RUN set -eux; \
       /tmp/fedora-base-nevra.before \
       /tmp/fedora-base-nevra.after
 
+# Install the separately maintained control center as an immutable image RPM.
+# rpm (not dnf) is deliberate here: every runtime dependency must already be
+# part of the declared image, so this step cannot resolve by replacing base RPMs.
+COPY --from=kriscc-rpm-builder /out/krisCC.rpm /tmp/krisCC.rpm
+RUN set -eux; \
+    rpm -Uvh /tmp/krisCC.rpm; \
+    rpm -q krisCC; \
+    rpm -V krisCC; \
+    rm -f /tmp/krisCC.rpm
+COPY build_files/krisCC-autostart.desktop /etc/xdg/autostart/krisCC-background.desktop
+
 # Add Fedora bindings without replacing any image package.
 RUN set -eux; \
     excludes="$(rpm -qa --qf '%{NAME}\n' | sort -u | paste -sd,)"; \
@@ -278,6 +319,14 @@ RUN set -eux; \
     test -x /usr/bin/bootc; \
     test -x /usr/bin/ostree; \
     test -x /usr/bin/dnf5; \
+    test -x /usr/bin/krisCC; \
+    rpm -q krisCC; \
+    rpm -V krisCC; \
+    test -f /usr/share/applications/krisCC.desktop; \
+    test -f /usr/share/metainfo/org.kriscc.KrisCC.metainfo.xml; \
+    test -f /usr/share/polkit-1/actions/org.kriscc.controlcenter.policy; \
+    test -f /etc/xdg/autostart/krisCC-background.desktop; \
+    grep -Fxq 'Exec=/usr/bin/krisCC --background' /etc/xdg/autostart/krisCC-background.desktop; \
     test -x /usr/bin/dolphin; \
     test -x /usr/bin/konsole; \
     test -x /usr/bin/kate; \
@@ -294,6 +343,7 @@ RUN set -eux; \
     test -f /usr/lib/systemd/system/krisos-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
     test -s /usr/share/krisos/owned-packages.txt; \
+    grep -Fxq krisCC /usr/share/krisos/owned-packages.txt; \
     assert_not_in_file gpg-pubkey /usr/share/krisos/owned-packages.txt; \
     test -e /usr/share/factory/var/lib/krisos/packages.list; \
     test ! -s /usr/share/factory/var/lib/krisos/packages.list; \
@@ -313,6 +363,12 @@ RUN set -eux; \
     grep -Fxq 'fs.suid_dumpable = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
     grep -Fxq 'AutoEnable=false' /etc/bluetooth/main.conf; \
     grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop; \
+    test -f /etc/dnf/repos.override.d/90-krisos-privacy.repo; \
+    grep -Fxq '[*]' /etc/dnf/repos.override.d/90-krisos-privacy.repo; \
+    grep -Fxq 'countme=false' /etc/dnf/repos.override.d/90-krisos-privacy.repo; \
+    test -f /etc/xdg/KDE/UserFeedback.conf; \
+    grep -Fxq '[UserFeedback]' /etc/xdg/KDE/UserFeedback.conf; \
+    grep -Fxq 'Enabled=false' /etc/xdg/KDE/UserFeedback.conf; \
     ! firewall-offline-cmd --zone=public --list-services | tr ' ' '\n' | grep -Eq '^(ssh|mdns)$'; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
     grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
