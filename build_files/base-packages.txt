@@ -37,6 +37,13 @@ xdg-desktop-portal-kde
 xdg-user-dirs
 udisks2
 
+# KWallet integration and password manager. pam-kwallet integrates wallet unlock
+# with the Plasma login session; kwalletmanager5 is the current Fedora package
+# name for the KDE wallet management application.
+kf6-kwallet
+pam-kwallet
+kwalletmanager5
+
 # Daily desktop tools. These are explicit KrisOS features, not accidental
 # dependency closure: M0 must remain useful even before any Flatpaks are added.
 dolphin
@@ -49,6 +56,9 @@ okular
 kcalc
 kio-admin
 kinfocenter
+ksystemlog
+plasma-systemmonitor
+kde-partitionmanager
 
 # Network firewall. Fedora 44's plasma-firewall package currently pulls both
 # backend plugins; KrisOS deliberately enables firewalld only. firewalld
@@ -98,6 +108,7 @@ bash-completion
 ntfs-3g
 ntfsprogs
 zram-generator-defaults
+dnf5-plugins
 
 # Visual baseline: icons/cursor only. Keep fonts to hard dependencies for M0.
 breeze-icon-theme
