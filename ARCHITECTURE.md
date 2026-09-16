@@ -1,11 +1,11 @@
-# raku-Kris — Architettura e invarianti
+# KrisOS — Architettura e invarianti
 
-`raku-Kris` è un desktop Fedora bootc minimale con SELinux enforcing e un
+`KrisOS` è un desktop Fedora bootc minimale con SELinux enforcing e un
 OverlayFS persistente su `/usr`.
 
 La base Fedora è immutabile e fissata per digest OCI. L'`upper` è cache
-ricostruibile, non una seconda base del sistema. Il progetto non dipende da
-codice, RPM, repository o formati di stato RakuOS.
+ricostruibile, non una seconda base del sistema. Il progetto mantiene codice,
+RPM, repository e formati di stato propri.
 
 ## Ambito M0
 
@@ -14,7 +14,7 @@ M0 valida una sola cosa: il lifecycle del nostro overlay `/usr`.
 - Fedora 44 bootc Minimal con contratto di deployment OSTree (`ostree=`).
 - Fedora può presentare la root immutabile tramite composefs/OverlayFS; quel
   mount resta proprietà di bootc/OSTree.
-- raku-Kris monta un OverlayFS persistente dedicato soltanto su `/usr`.
+- KrisOS monta un OverlayFS persistente dedicato soltanto su `/usr`.
 - Il mount avviene in early real-root userspace: dopo `ostree-remount.service`
   e prima di `local-fs.target`.
 - Stesso deployment: `upper/` viene conservato.
@@ -32,10 +32,10 @@ bootc.
 
 ## Stato persistente
 
-Lo stato specifico del progetto vive in `/var/lib/raku-kris/`:
+Lo stato specifico del progetto vive in `/var/lib/krisos/`:
 
 ```text
-/var/lib/raku-kris/
+/var/lib/krisos/
 ├── packages.list   # M1: richieste RPM esplicite dell'utente
 ├── deployment      # identità OSTree per cui upper/ è valido
 ├── needs-sync      # M1: marker per ricostruire i pacchetti richiesti
@@ -61,7 +61,7 @@ possono quindi avere lo stesso `BOOTCSUM` pur contenendo `/usr` differenti: non
 è sufficiente per decidere se una cache OverlayFS è ancora valida.
 
 In real-root userspace il pathname indicato da `ostree=` è un bootlink OSTree.
-raku-Kris legge quel symlink e usa il basename del target, nel formato:
+KrisOS legge quel symlink e usa il basename del target, nel formato:
 
 ```text
 COMMIT.DEPLOYSERIAL
@@ -111,19 +111,19 @@ ricostruite sulla nuova base.
    sull'upper. Prima del mount `chcon --reference=/usr` etichetta soltanto la
    directory radice `upper/`; i payload vengono creati tramite i pathname
    logici di `/usr`.
-7. **Single-arch.** raku-Kris usa soltanto `x86_64` e `noarch`; i686/multilib
+7. **Single-arch.** KrisOS usa soltanto `x86_64` e `noarch`; i686/multilib
    sono esclusi dalla policy DNF e non devono comparire nell'immagine.
 8. **Niente refresh DNF periodico.** I timer makecache sono mascherati; il
    refresh metadata è esplicito e legato alle operazioni package che lo
    richiedono.
-9. **Niente RakuOS a runtime o build-time.** Il motivo è ridurre compatibilità,
-   superficie di cambiamento e manutenzione, non aggirare una licenza.
+9. **Nessuna dipendenza runtime o build-time da componenti esterni al progetto,**
+   oltre alla base Fedora e ai normali pacchetti Fedora dichiarati.
 
 ## M1
 
 M1 aggiunge il comando `rk` sopra DNF5 senza introdurre una seconda rpmdb o un
-dependency graph proprietario. `/usr/share/raku-kris/owned-packages.txt`
-protegge l'intera immagine immutabile (base Fedora + delta raku); `packages.list`
+dependency graph proprietario. `/usr/share/krisos/owned-packages.txt`
+protegge l'intera immagine immutabile (base Fedora + delta KrisOS); `packages.list`
 contiene soltanto richieste esplicite dell'utente.
 
 La policy già congelata per M1 è:

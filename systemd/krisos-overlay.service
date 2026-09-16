@@ -1,5 +1,5 @@
 [Unit]
-Description=raku-Kris persistent /usr overlay
+Description=KrisOS persistent /usr overlay
 DefaultDependencies=no
 RequiresMountsFor=/var
 After=ostree-remount.service
@@ -8,7 +8,7 @@ Conflicts=shutdown.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/raku-kris-overlay
+ExecStart=/usr/libexec/krisos-overlay
 RemainAfterExit=yes
 
 [Install]

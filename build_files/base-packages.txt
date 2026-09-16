@@ -1,4 +1,4 @@
-# raku-Kris immutable package delta.
+# KrisOS immutable package delta.
 # Packages already owned by the pinned Fedora bootc base are intentionally not
 # repeated here; the Containerfile protects that base from DNF transactions.
 # Keep this list at the feature/root level: Fedora owns the dependency closure.
@@ -37,7 +37,7 @@ xdg-desktop-portal-kde
 xdg-user-dirs
 udisks2
 
-# Daily desktop tools. These are explicit raku-Kris features, not accidental
+# Daily desktop tools. These are explicit KrisOS features, not accidental
 # dependency closure: M0 must remain useful even before any Flatpaks are added.
 dolphin
 konsole
@@ -51,7 +51,7 @@ kio-admin
 kinfocenter
 
 # Network firewall. Fedora 44's plasma-firewall package currently pulls both
-# backend plugins; raku-Kris deliberately enables firewalld only. firewalld
+# backend plugins; KrisOS deliberately enables firewalld only. firewalld
 # uses the kernel nftables stack and is the supported runtime backend.
 plasma-firewall
 firewalld

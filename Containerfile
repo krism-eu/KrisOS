@@ -1,4 +1,4 @@
-# raku-Kris M1 — persistent /usr overlay plus restricted rk package layer.
+# KrisOS M1 — persistent /usr overlay plus restricted rk package layer.
 # M1 includes additive rk transactions, deployment sync and recovery.
 
 # Release builds use this exact Fedora 44 bootc Minimal digest. CI and manual
@@ -23,7 +23,7 @@ RUN set -eux; \
 FROM ${BASE_IMAGE}
 
 ARG RELEASE=0.1.0-m1
-LABEL org.opencontainers.image.title="raku-kris"
+LABEL org.opencontainers.image.title="krisos"
 LABEL org.opencontainers.image.version="${RELEASE}"
 LABEL org.opencontainers.image.description="Fedora 44 bootc Minimal + persistent additive /usr overlay and rk package layer (M1)"
 LABEL containers.bootc="1"
@@ -32,15 +32,15 @@ LABEL ostree.bootable="1"
 # Install only the hardware blob observed missing on the validated RTL8168H
 # system. Keep provenance/license material while avoiding the broad firmware RPM.
 COPY --from=rtl8168-firmware-source /out/firmware/rtl_nic/rtl8168h-2.fw.xz /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz
-COPY --from=rtl8168-firmware-source /out/licenses/ /usr/share/licenses/raku-rtl8168-firmware/
+COPY --from=rtl8168-firmware-source /out/licenses/ /usr/share/licenses/krisos-rtl8168-firmware/
 
-# Global DNF5 policy: raku-Kris is x86_64/noarch only. User-facing package
+# Global DNF5 policy: KrisOS is x86_64/noarch only. User-facing package
 # operations in M1 inherit this and the wrapper will reject attempts to bypass
 # the architecture/exclude policy.
 RUN install -d -m 0755 /etc/dnf/libdnf5.conf.d
-COPY build_files/dnf-raku-kris.conf /etc/dnf/libdnf5.conf.d/90-raku-kris.conf
+COPY build_files/dnf-krisos.conf /etc/dnf/libdnf5.conf.d/90-krisos.conf
 
-# Immutable raku-Kris package delta. Fedora owns every RPM already present in
+# Immutable KrisOS package delta. Fedora owns every RPM already present in
 # the pinned bootc base: exclude those names from the layering transaction and
 # verify their exact installed EVRAs are unchanged afterwards. If the desktop
 # requires a newer Fedora-owned RPM, the build must fail and the base digest
@@ -65,16 +65,16 @@ RUN set -eux; \
       -e 's/^[[:space:]]*//' \
       -e 's/[[:space:]]*$//' \
       -e '/^$/d' \
-      /tmp/base-packages.txt > /tmp/raku-delta-names.raw; \
+      /tmp/base-packages.txt > /tmp/krisos-delta-names.raw; \
     LC_ALL=C sort -u \
-      /tmp/raku-delta-names.raw > /tmp/raku-delta-names.txt; \
+      /tmp/krisos-delta-names.raw > /tmp/krisos-delta-names.txt; \
     LC_ALL=C comm -12 \
       /tmp/fedora-base-names.txt \
-      /tmp/raku-delta-names.txt \
-      > /tmp/raku-base-collisions.txt; \
-    if [ -s /tmp/raku-base-collisions.txt ]; then \
-      echo 'raku-Kris package delta collides with Fedora-owned base packages:' >&2; \
-      cat /tmp/raku-base-collisions.txt >&2; \
+      /tmp/krisos-delta-names.txt \
+      > /tmp/krisos-base-collisions.txt; \
+    if [ -s /tmp/krisos-base-collisions.txt ]; then \
+      echo 'KrisOS package delta collides with Fedora-owned base packages:' >&2; \
+      cat /tmp/krisos-base-collisions.txt >&2; \
       echo 'Remove these names from build_files/base-packages.txt.' >&2; \
       exit 1; \
     fi; \
@@ -89,7 +89,7 @@ RUN set -eux; \
     xargs -r dnf5 -y \
       --setopt=install_weak_deps=False \
       --setopt="excludepkgs=${base_excludes}" \
-      install < /tmp/raku-delta-names.txt; \
+      install < /tmp/krisos-delta-names.txt; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     if rpm -q glibc-all-langpacks >/dev/null 2>&1; then \
       if grep -Fxq glibc-all-langpacks /tmp/fedora-base-names.txt; then \
@@ -157,7 +157,7 @@ RUN set -eux; \
     test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
     assert_absent linux-firmware; \
     if rpm -qa --qf '%{ARCH}\n' | grep -qx i686; then \
-      echo 'i686 packages are not allowed in raku-Kris' >&2; \
+      echo 'i686 packages are not allowed in KrisOS' >&2; \
       exit 1; \
     fi; \
     dnf5 check --dependencies; \
@@ -175,9 +175,9 @@ RUN set -eux; \
       /tmp/fedora-base-names.raw \
       /tmp/fedora-base-names.filtered \
       /tmp/fedora-base-names.txt \
-      /tmp/raku-delta-names.raw \
-      /tmp/raku-delta-names.txt \
-      /tmp/raku-base-collisions.txt \
+      /tmp/krisos-delta-names.raw \
+      /tmp/krisos-delta-names.txt \
+      /tmp/krisos-base-collisions.txt \
       /tmp/fedora-base-nevra.before \
       /tmp/fedora-base-nevra.after
 
@@ -192,32 +192,32 @@ RUN set -eux; \
     dnf5 clean all; rm -f /tmp/rk-before /tmp/rk-after
 COPY bin/rk /usr/bin/rk
 RUN chmod 0755 /usr/bin/rk
-COPY systemd/raku-kris-sync.service /usr/lib/systemd/system/raku-kris-sync.service
-RUN systemctl enable raku-kris-sync.service
+COPY systemd/krisos-sync.service /usr/lib/systemd/system/krisos-sync.service
+RUN systemctl enable krisos-sync.service
 
 # Persistent /usr overlay. Mount it in early real-root userspace rather than in
 # initrd: OSTree has already exposed writable /var, while local-fs.target still
 # holds normal services behind the overlay setup.
-COPY systemd/raku-kris-overlay.sh /usr/libexec/raku-kris-overlay
-COPY systemd/raku-kris-overlay.service /usr/lib/systemd/system/raku-kris-overlay.service
-RUN chmod 0755 /usr/libexec/raku-kris-overlay
+COPY systemd/krisos-overlay.sh /usr/libexec/krisos-overlay
+COPY systemd/krisos-overlay.service /usr/lib/systemd/system/krisos-overlay.service
+RUN chmod 0755 /usr/libexec/krisos-overlay
 
 # Conservative hardening: only deltas from Fedora defaults that passed real
 # Plasma/Wayland, networking, audio, rootless Podman and S3 suspend testing.
-COPY build_files/55-raku-hardening.conf /usr/lib/sysctl.d/55-raku-hardening.conf
+COPY build_files/55-krisos-hardening.conf /usr/lib/sysctl.d/55-krisos-hardening.conf
 
 # Snapshot every immutable package name owned by the final image: pinned Fedora
-# base plus the raku-Kris delta. RPM key pseudo-packages are deliberately not
+# base plus the KrisOS delta. RPM key pseudo-packages are deliberately not
 # package-ownership policy; M1 handles repository/key trust separately.
 RUN set -eux; \
-    install -d -m 0755 /usr/share/raku-kris; \
+    install -d -m 0755 /usr/share/krisos; \
     rpm -qa --qf '%{NAME}\n' \
       | sed -e '/^gpg-pubkey$/d' \
       | LC_ALL=C sort -u \
-      > /usr/share/raku-kris/owned-packages.txt; \
-    test -s /usr/share/raku-kris/owned-packages.txt; \
-    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sed '/^gpg-pubkey\t/d' | LC_ALL=C sort -u > /usr/share/raku-kris/owned-nevra.txt; \
-    if grep -Fxq gpg-pubkey /usr/share/raku-kris/owned-packages.txt; then \
+      > /usr/share/krisos/owned-packages.txt; \
+    test -s /usr/share/krisos/owned-packages.txt; \
+    rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sed '/^gpg-pubkey\t/d' | LC_ALL=C sort -u > /usr/share/krisos/owned-nevra.txt; \
+    if grep -Fxq gpg-pubkey /usr/share/krisos/owned-packages.txt; then \
       echo 'gpg-pubkey must not appear in immutable ownership snapshot' >&2; \
       exit 1; \
     fi
@@ -225,11 +225,11 @@ RUN set -eux; \
 # Factory state plus an explicit tmpfiles contract. Seed package intent and the
 # initial NetworkManager radio policy only when missing; persistent user state
 # must survive reboot and bootc image updates.
-COPY build_files/tmpfiles-raku-kris.conf /usr/lib/tmpfiles.d/raku-kris.conf
+COPY build_files/tmpfiles-krisos.conf /usr/lib/tmpfiles.d/krisos.conf
 RUN set -eux; \
-    install -d -m 0755 /usr/share/factory/var/lib/raku-kris; \
+    install -d -m 0755 /usr/share/factory/var/lib/krisos; \
     install -d -m 0755 /usr/share/factory/var/lib/NetworkManager; \
-    : > /usr/share/factory/var/lib/raku-kris/packages.list
+    : > /usr/share/factory/var/lib/krisos/packages.list
 COPY build_files/NetworkManager.state /usr/share/factory/var/lib/NetworkManager/NetworkManager.state
 
 RUN set -eux; \
@@ -241,8 +241,8 @@ RUN set -eux; \
     grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop || printf '\nHidden=true\n' >> /etc/xdg/autostart/geoclue-demo-agent.desktop; \
     firewall-offline-cmd --zone=public --remove-service-from-zone=ssh; \
     firewall-offline-cmd --zone=public --remove-service-from-zone=mdns; \
-    systemctl enable raku-kris-overlay.service; \
-    systemctl enable raku-kris-sync.service; \
+    systemctl enable krisos-overlay.service; \
+    systemctl enable krisos-sync.service; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
     systemctl enable systemd-timesyncd.service; \
@@ -290,43 +290,43 @@ RUN set -eux; \
     test -x /usr/bin/powerprofilesctl; \
     test -x /usr/bin/os-prober; \
     test -x /usr/bin/ntfsresize; \
-    test -x /usr/libexec/raku-kris-overlay; \
-    test -f /usr/lib/systemd/system/raku-kris-overlay.service; \
+    test -x /usr/libexec/krisos-overlay; \
+    test -f /usr/lib/systemd/system/krisos-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
-    test -s /usr/share/raku-kris/owned-packages.txt; \
-    assert_not_in_file gpg-pubkey /usr/share/raku-kris/owned-packages.txt; \
-    test -e /usr/share/factory/var/lib/raku-kris/packages.list; \
-    test ! -s /usr/share/factory/var/lib/raku-kris/packages.list; \
+    test -s /usr/share/krisos/owned-packages.txt; \
+    assert_not_in_file gpg-pubkey /usr/share/krisos/owned-packages.txt; \
+    test -e /usr/share/factory/var/lib/krisos/packages.list; \
+    test ! -s /usr/share/factory/var/lib/krisos/packages.list; \
     test -f /usr/share/factory/var/lib/NetworkManager/NetworkManager.state; \
     grep -Fxq 'WirelessEnabled=false' /usr/share/factory/var/lib/NetworkManager/NetworkManager.state; \
-    test -f /usr/lib/tmpfiles.d/raku-kris.conf; \
-    grep -Fxq 'd /var/lib/raku-kris 0755 root root -' \
-      /usr/lib/tmpfiles.d/raku-kris.conf; \
-    grep -Fxq 'C /var/lib/raku-kris/packages.list 0644 root root - /usr/share/factory/var/lib/raku-kris/packages.list' \
-      /usr/lib/tmpfiles.d/raku-kris.conf; \
+    test -f /usr/lib/tmpfiles.d/krisos.conf; \
+    grep -Fxq 'd /var/lib/krisos 0755 root root -' \
+      /usr/lib/tmpfiles.d/krisos.conf; \
+    grep -Fxq 'C /var/lib/krisos/packages.list 0644 root root - /usr/share/factory/var/lib/krisos/packages.list' \
+      /usr/lib/tmpfiles.d/krisos.conf; \
     grep -Fxq 'C /var/lib/NetworkManager/NetworkManager.state 0600 root root - /usr/share/factory/var/lib/NetworkManager/NetworkManager.state' \
-      /usr/lib/tmpfiles.d/raku-kris.conf; \
-    test -f /usr/lib/sysctl.d/55-raku-hardening.conf; \
-    grep -Fxq 'kernel.kptr_restrict = 2' /usr/lib/sysctl.d/55-raku-hardening.conf; \
-    grep -Fxq 'fs.protected_regular = 2' /usr/lib/sysctl.d/55-raku-hardening.conf; \
-    grep -Fxq 'fs.protected_fifos = 2' /usr/lib/sysctl.d/55-raku-hardening.conf; \
-    grep -Fxq 'fs.suid_dumpable = 0' /usr/lib/sysctl.d/55-raku-hardening.conf; \
+      /usr/lib/tmpfiles.d/krisos.conf; \
+    test -f /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'kernel.kptr_restrict = 2' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'fs.protected_regular = 2' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'fs.protected_fifos = 2' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'fs.suid_dumpable = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
     grep -Fxq 'AutoEnable=false' /etc/bluetooth/main.conf; \
     grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop; \
     ! firewall-offline-cmd --zone=public --list-services | tr ' ' '\n' | grep -Eq '^(ssh|mdns)$'; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
     grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
-    grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
-    grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
+    grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     rpm -q xcb-util-cursor; \
     test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
-    test -d /usr/share/licenses/raku-rtl8168-firmware; \
+    test -d /usr/share/licenses/krisos-rtl8168-firmware; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
-    systemctl is-enabled raku-kris-overlay.service | grep -qx enabled; \
-    systemctl is-enabled raku-kris-sync.service | grep -qx enabled; \
+    systemctl is-enabled krisos-overlay.service | grep -qx enabled; \
+    systemctl is-enabled krisos-sync.service | grep -qx enabled; \
     systemctl is-enabled plasmalogin.service | grep -qx enabled; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
     systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \

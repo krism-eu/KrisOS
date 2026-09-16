@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Additive Fedora RPM transactions on the raku-Kris persistent overlay."""
+"""Additive Fedora RPM transactions on the KrisOS persistent overlay."""
 import argparse
 import fcntl
 import os
@@ -9,9 +9,9 @@ import subprocess
 import sys
 import tempfile
 
-STATE = Path('/var/lib/raku-kris')
-OWNED = Path('/usr/share/raku-kris/owned-packages.txt')
-IDENTITIES = Path('/usr/share/raku-kris/owned-nevra.txt')
+STATE = Path('/var/lib/krisos')
+OWNED = Path('/usr/share/krisos/owned-packages.txt')
+IDENTITIES = Path('/usr/share/krisos/owned-nevra.txt')
 
 
 def output(*args):
@@ -60,7 +60,7 @@ def guard():
     if len(fields) != 3 or fields[1] != 'overlay':
         raise RuntimeError('A dedicated /usr overlay is required; base-only boot is read-only for rk')
     opts = fields[2].split(',')
-    for option in ('rw', 'upperdir=/var/lib/raku-kris/upper', 'workdir=/var/lib/raku-kris/work'):
+    for option in ('rw', 'upperdir=/var/lib/krisos/upper', 'workdir=/var/lib/krisos/work'):
         if option not in opts:
             raise RuntimeError(f'Unexpected /usr mount: missing {option}')
     if (STATE / 'pending').exists():
@@ -105,7 +105,7 @@ def validate_payload(path):
             raise RuntimeError('Package payload outside /usr: ' + filename)
         resolved = str(file.resolve())
         if not resolved.startswith('/usr/') or any(resolved == p or resolved.startswith(p + '/') for p in (
-            '/usr/lib/modules', '/usr/lib/sysimage', '/usr/share/raku-kris', '/usr/lib/ostree',
+            '/usr/lib/modules', '/usr/lib/sysimage', '/usr/share/krisos', '/usr/lib/ostree',
         )):
             raise RuntimeError('Package payload reaches protected or persistent state: ' + filename)
         if os.path.lexists(file) and not (directory and file.is_dir() and not file.is_symlink()):

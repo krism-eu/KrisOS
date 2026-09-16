@@ -1,0 +1,13 @@
+[Unit]
+Description=Restore requested KrisOS packages on the current deployment
+After=multi-user.target krisos-overlay.service
+ConditionPathExists=/var/lib/krisos/needs-sync
+ConditionKernelCommandLine=!krisos.overlay=off
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rk sync
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=graphical.target

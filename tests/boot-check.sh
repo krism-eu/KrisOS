@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post-boot smoke test for raku-Kris M1. Run on the booted system.
+# Post-boot smoke test for KrisOS M1. Run on the booted system.
 set -u
 
 fail=0
@@ -9,7 +9,7 @@ deploy_path=""
 IFS= read -r cmdline < /proc/cmdline || true
 read -r -a tokens <<< "$cmdline"
 for token in "${tokens[@]}"; do
-    [ "$token" != "raku-kris.overlay=off" ] || recovery=1
+    [ "$token" != "krisos.overlay=off" ] || recovery=1
     case "$token" in
         ostree=*) deploy_path="${token#ostree=}" ;;
     esac
@@ -36,7 +36,6 @@ if [ "$recovery" -eq 1 ]; then
         exit 1
     fi
     echo "RECOVERY BOOT VERIFIED: overlay intentionally disabled; normal overlay checks skipped"
-    # Distinguish recovery from a fully validated normal boot in automation.
     exit 2
 fi
 
@@ -56,12 +55,12 @@ if [ -n "$deploy_path" ]; then
 fi
 
 check "/usr dedicated overlay"    "test \"$(findmnt -T /usr -n -o TARGET)\" = /usr && test \"$(findmnt -T /usr -n -o FSTYPE)\" = overlay"
-check "overlay service active"    "systemctl is-active raku-kris-overlay.service | grep -qx active"
-check "deployment recorded"       "test -s /var/lib/raku-kris/deployment"
-check "deployment identity matches OSTree commit" "test -n \"$expected_deployment\" && grep -Fxq \"$expected_deployment\" /var/lib/raku-kris/deployment"
-check "overlay upper present"     "test -d /var/lib/raku-kris/upper"
-check "overlay work present"      "test -d /var/lib/raku-kris/work"
-check "package intent seed"       "test -e /var/lib/raku-kris/packages.list"
+check "overlay service active"    "systemctl is-active krisos-overlay.service | grep -qx active"
+check "deployment recorded"       "test -s /var/lib/krisos/deployment"
+check "deployment identity matches OSTree commit" "test -n \"$expected_deployment\" && grep -Fxq \"$expected_deployment\" /var/lib/krisos/deployment"
+check "overlay upper present"     "test -d /var/lib/krisos/upper"
+check "overlay work present"      "test -d /var/lib/krisos/work"
+check "package intent seed"       "test -e /var/lib/krisos/packages.list"
 check "SELinux enforcing"         "getenforce | grep -qx Enforcing"
 check "overlay root labeled usr_t" "ls -Zd /usr | grep -q 'object_r:usr_t:'"
 check "login manager active"      "systemctl is-active plasmalogin.service | grep -qx active"

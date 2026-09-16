@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import unittest
 
-SOURCE = Path(__file__).resolve().parents[1] / "systemd/raku-kris-overlay.sh"
+SOURCE = Path(__file__).resolve().parents[1] / "systemd/krisos-overlay.sh"
 BOOTCSUM = "b" * 64
 OLD_COMMIT = "a" * 64
 NEW_COMMIT = "c" * 64
@@ -21,7 +21,6 @@ class OverlayIdentity(unittest.TestCase):
         ostree = root / "ostree"
         bootlink = ostree / "boot.0" / "default" / BOOTCSUM / "0"
         bootlink.parent.mkdir(parents=True)
-        # Only the target basename matters to libostree and to our hook.
         bootlink.symlink_to(f"../../../../deploy/default/deploy/{target_commit}.{deployserial}")
 
         cmdline = root / "cmdline"
@@ -50,7 +49,7 @@ class OverlayIdentity(unittest.TestCase):
         text = text.replace("/proc/cmdline", str(cmdline))
         text = text.replace("/proc/mounts", str(mounts))
         text = text.replace("/ostree/", str(ostree) + "/")
-        text = text.replace("state=/var/lib/raku-kris", f"state={state}")
+        text = text.replace("state=/var/lib/krisos", f"state={state}")
         hook.write_text(text)
         hook.chmod(0o755)
 

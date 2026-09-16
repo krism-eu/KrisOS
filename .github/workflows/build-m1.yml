@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash -n systemd/raku-kris-overlay.sh
+          bash -n systemd/krisos-overlay.sh
           bash -n tests/boot-check.sh
           python3 -m py_compile bin/rk
           python3 tests/test_rk.py
@@ -41,11 +41,13 @@ jobs:
           python3 tests/test_overlay_identity.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           grep -Fxq 'ARG RELEASE=0.1.0-m1' Containerfile
-          grep -Fq 'state=/var/lib/raku-kris' systemd/raku-kris-overlay.sh
-          grep -Fq 'After=ostree-remount.service' systemd/raku-kris-overlay.service
-          grep -Fq 'Before=local-fs.target shutdown.target' systemd/raku-kris-overlay.service
-          grep -Fq 'excludepkgs=*.i686' build_files/dnf-raku-kris.conf
-          grep -Fq 'multilib_policy=best' build_files/dnf-raku-kris.conf
+          grep -Fq 'state=/var/lib/krisos' systemd/krisos-overlay.sh
+          grep -Fq 'After=ostree-remount.service' systemd/krisos-overlay.service
+          grep -Fq 'Before=local-fs.target shutdown.target' systemd/krisos-overlay.service
+          grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
+          grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
+          legacy_prefix='ra''ku'
+          ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
 
       - name: Install Podman
         shell: bash
@@ -71,17 +73,18 @@ jobs:
           sudo podman build \
             --pull=always \
             "${args[@]}" \
-            -t localhost/raku-kris:m1 \
+            -t localhost/krisos:m1 \
             . 2>&1 | tee build.log
 
       - name: Inspect built image
         shell: bash
         run: |
           set -euo pipefail
-          sudo podman inspect localhost/raku-kris:m1 --format '{{.Id}}'
-          test "$(sudo podman inspect localhost/raku-kris:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
-          test "$(sudo podman inspect localhost/raku-kris:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
-          test "$(sudo podman inspect localhost/raku-kris:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
+          sudo podman inspect localhost/krisos:m1 --format '{{.Id}}'
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
 
       - name: Real RPM package layer integration
         shell: bash
@@ -90,7 +93,7 @@ jobs:
           sudo podman run --rm --security-opt label=disable \
             -e RK_DISPOSABLE_CONTAINER_TEST=1 \
             -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
-            --entrypoint python3 localhost/raku-kris:m1 /tmp/test-rk.py \
+            --entrypoint python3 localhost/krisos:m1 /tmp/test-rk.py \
             2>&1 | tee rk-integration.log
 
       - name: Preserve complete logs

@@ -11,7 +11,7 @@ rk = importlib.machinery.SourceFileLoader('rk', str(Path(__file__).resolve().par
 
 def guard_output(*args):
     if args[:2] == ('findmnt', '-rn'):
-        return '42 overlay rw,relatime,upperdir=/var/lib/raku-kris/upper,workdir=/var/lib/raku-kris/work'
+        return '42 overlay rw,relatime,upperdir=/var/lib/krisos/upper,workdir=/var/lib/krisos/work'
     if args == ('getenforce',):
         return 'Enforcing'
     if args == ('ls', '-Zd', '/usr'):
@@ -56,8 +56,6 @@ class Policy(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(rk, 'STATE', Path(directory)), \
                 mock.patch.object(rk, 'output', side_effect=guard_output):
-            # A stale/foreign-looking marker must not be interpreted by rk;
-            # deployment invalidation belongs exclusively to the boot hook.
             (Path(directory) / 'deployment').write_text('default/' + 'a' * 64 + '/0\n')
             mount = rk.guard()
             self.assertTrue(mount.startswith('42 overlay '))

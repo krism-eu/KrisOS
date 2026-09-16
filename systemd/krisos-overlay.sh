@@ -1,5 +1,5 @@
 #!/bin/bash
-# raku-kris-overlay — early userspace persistent /usr overlay.
+# krisos-overlay — early userspace persistent /usr overlay.
 #
 # Runs after ostree-remount.service and before local-fs.target. At this point
 # the booted deployment is active, /var is writable, and normal services have
@@ -9,7 +9,7 @@
 set -u
 
 log() {
-    echo "raku-kris-overlay: $*"
+    echo "krisos-overlay: $*"
 }
 
 cmdline=""
@@ -18,7 +18,7 @@ IFS= read -r cmdline < /proc/cmdline || true
 # Split whitespace once, without pathname expansion; retain the final token.
 read -r -a cmdline_tokens <<< "$cmdline"
 for tok in "${cmdline_tokens[@]}"; do
-    if [ "$tok" = "raku-kris.overlay=off" ]; then
+    if [ "$tok" = "krisos.overlay=off" ]; then
         log "disabled via karg — skipping"
         exit 0
     fi
@@ -114,7 +114,7 @@ if [ "$already_mounted" -eq 1 ]; then
     exit 0
 fi
 
-state=/var/lib/raku-kris
+state=/var/lib/krisos
 upper="$state/upper"
 work="$state/work"
 saved="$state/deployment"

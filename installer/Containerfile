@@ -1,7 +1,7 @@
 FROM quay.io/fedora/fedora-bootc:45
 
 # Fedora 45 Anaconda runtime for a generic bootc installer ISO.
-# The installer ISO is intentionally independent from the raku-Kris payload.
+# The installer ISO is intentionally independent from the KrisOS payload.
 RUN dnf install -qy --setopt=install_weak_deps=False \
     anaconda \
     anaconda-install-img-deps \
@@ -27,17 +27,17 @@ RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
 # on the physical validation machine.
 RUN mkdir -p /usr/lib/image-builder/bootc && \
     cat > /usr/lib/image-builder/bootc/iso.yaml <<'EOF'
-label: "RAKU-KRIS-F45"
+label: "KRISOS-F45"
 grub2:
   entries:
-    - name: "Install raku-Kris"
-      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=RAKU-KRIS-F45 console=tty0 inst.graphical inst.wait_for_disks=0 inst.noibft selinux=0 rhgb quiet"
+    - name: "Install KrisOS"
+      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=KRISOS-F45 console=tty0 inst.graphical inst.wait_for_disks=0 inst.noibft selinux=0 rhgb quiet"
       initrd: "/images/pxeboot/initrd.img"
 EOF
 
 # Interactive defaults only. The bootc source is deliberately NOT embedded in
 # the ISO. Supply it through a Kickstart selected at boot with inst.ks=https://...
-# so the same installer ISO can install any chosen raku-Kris tag or digest.
+# so the same installer ISO can install any chosen KrisOS tag or digest.
 RUN printf '%s\n' \
     'graphical' \
     'lang it_IT.UTF-8' \

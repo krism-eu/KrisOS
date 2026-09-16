@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-SOURCE = Path(__file__).resolve().parents[1] / 'systemd/raku-kris-overlay.sh'
+SOURCE = Path(__file__).resolve().parents[1] / 'systemd/krisos-overlay.sh'
 
 
 class Recovery(unittest.TestCase):
@@ -23,13 +23,13 @@ class Recovery(unittest.TestCase):
             return result.stdout
 
     def test_off_before_any_state_access(self):
-        self.assertIn('disabled via karg', self.run_hook('ostree=/ostree/boot.0/default/abc/0 raku-kris.overlay=off'))
+        self.assertIn('disabled via karg', self.run_hook('ostree=/ostree/boot.0/default/abc/0 krisos.overlay=off'))
 
     def test_off_with_whitespace(self):
-        self.assertIn('disabled via karg', self.run_hook('\traku-kris.overlay=off  quiet\n'))
+        self.assertIn('disabled via karg', self.run_hook('\tkrisos.overlay=off  quiet\n'))
 
     def test_only_exact_token_disables(self):
-        for token in ('raku-kris.overlay=offfoo', 'other=raku-kris.overlay=off'):
+        for token in ('krisos.overlay=offfoo', 'other=krisos.overlay=off'):
             self.assertIn('no ostree=', self.run_hook(token))
 
     def test_no_globbing(self):
@@ -39,7 +39,7 @@ class Recovery(unittest.TestCase):
         for enforcement, code in (('Enforcing', 2), ('Permissive', 1)):
             with self.subTest(enforcement=enforcement), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                (root / 'cmdline').write_text('ostree=/ostree/boot.0/default/abc/0 raku-kris.overlay=off\n')
+                (root / 'cmdline').write_text('ostree=/ostree/boot.0/default/abc/0 krisos.overlay=off\n')
                 systemctl = '''
 if [ "$1" = "is-enabled" ] && [ "$2" = "systemd-homed.service" ]; then
     exit 1

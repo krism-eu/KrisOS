@@ -15,11 +15,11 @@ done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
-installer_image="localhost/raku-kris-installer:f45"
+installer_image="localhost/krisos-installer:f45"
 
 mkdir -p "$output_dir"
 
-printf 'Building generic Fedora 45 raku-Kris installer runtime...\n'
+printf 'Building generic Fedora 45 KrisOS installer runtime...\n'
 sudo podman build \
     --pull=always \
     -f "$repo_root/installer/Containerfile" \

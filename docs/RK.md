@@ -13,8 +13,8 @@ sudo rk rm tree
 
 The Fedora libdnf5 API resolves and applies the same transaction under its
 system-repository lock. No second rpmdb, no bootc marker hiding, no transient
-overlay creation, no external RakuOS components. RPM and libdnf5 system state
-live under the existing persistent /usr overlay.
+overlay creation, and no external package-management components. RPM and
+libdnf5 system state live under the existing persistent /usr overlay.
 
 This first implementation accepts exact package names from enabled Fedora and
 updates repositories, x86_64/noarch only. It rejects all changes to image-owned
