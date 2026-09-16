@@ -102,6 +102,7 @@ RUN set -eux; \
       bluez \
       bluez-obexd \
       mt7xxx-firmware \
+      realtek-firmware \
       amd-gpu-firmware \
       amd-ucode-firmware \
       mesa-dri-drivers \
@@ -125,6 +126,8 @@ RUN set -eux; \
       plasma-firewall-firewalld \
       firewalld \
       iproute \
+      iputils \
+      pciutils \
       tar \
       bash-completion \
       ntfs-3g \
@@ -134,6 +137,7 @@ RUN set -eux; \
       zram-generator-defaults; \
     rpm -q --whatprovides mesa-va-drivers; \
     test -e /usr/lib64/dri/radeonsi_drv_video.so; \
+    find /usr/lib/firmware/rtl_nic -maxdepth 1 -name 'rtl8168h-2.fw*' -print -quit | grep -q .; \
     assert_absent linux-firmware; \
     if rpm -qa --qf '%{ARCH}\n' | grep -qx i686; then \
       echo 'i686 packages are not allowed in raku-Kris' >&2; \
@@ -181,6 +185,10 @@ COPY systemd/raku-kris-overlay.sh /usr/libexec/raku-kris-overlay
 COPY systemd/raku-kris-overlay.service /usr/lib/systemd/system/raku-kris-overlay.service
 RUN chmod 0755 /usr/libexec/raku-kris-overlay
 
+# Conservative hardening: only deltas from Fedora defaults that passed real
+# Plasma/Wayland, networking, audio, rootless Podman and S3 suspend testing.
+COPY build_files/55-raku-hardening.conf /usr/lib/sysctl.d/55-raku-hardening.conf
+
 # Snapshot every immutable package name owned by the final image: pinned Fedora
 # base plus the raku-Kris delta. RPM key pseudo-packages are deliberately not
 # package-ownership policy; M1 handles repository/key trust separately.
@@ -197,22 +205,34 @@ RUN set -eux; \
       exit 1; \
     fi
 
-# Factory state plus an explicit tmpfiles contract. The C rule seeds the empty
-# M1 package-intent file only when it is missing; existing persistent state is
-# never overwritten by a reboot or image update.
+# Factory state plus an explicit tmpfiles contract. Seed package intent and the
+# initial NetworkManager radio policy only when missing; persistent user state
+# must survive reboot and bootc image updates.
 COPY build_files/tmpfiles-raku-kris.conf /usr/lib/tmpfiles.d/raku-kris.conf
 RUN set -eux; \
     install -d -m 0755 /usr/share/factory/var/lib/raku-kris; \
+    install -d -m 0755 /usr/share/factory/var/lib/NetworkManager; \
     : > /usr/share/factory/var/lib/raku-kris/packages.list
+COPY build_files/NetworkManager.state /usr/share/factory/var/lib/NetworkManager/NetworkManager.state
 
 RUN set -eux; \
     printf '%s\n' 'LANG=it_IT.UTF-8' > /etc/locale.conf; \
+    test -f /etc/bluetooth/main.conf; \
+    sed -i 's/^#AutoEnable=true$/AutoEnable=false/' /etc/bluetooth/main.conf; \
+    grep -Fxq 'AutoEnable=false' /etc/bluetooth/main.conf; \
+    test -f /etc/xdg/autostart/geoclue-demo-agent.desktop; \
+    grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop || printf '\nHidden=true\n' >> /etc/xdg/autostart/geoclue-demo-agent.desktop; \
+    firewall-offline-cmd --zone=public --remove-service=ssh; \
+    firewall-offline-cmd --zone=public --remove-service=mdns; \
     systemctl enable raku-kris-overlay.service; \
     systemctl enable raku-kris-sync.service; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
     systemctl enable systemd-timesyncd.service; \
     systemctl disable systemd-homed.service; \
+    systemctl disable avahi-daemon.service avahi-daemon.socket; \
+    systemctl disable mdmonitor.service raid-check.timer; \
+    systemctl disable flatpak-add-fedora-repos.service; \
     systemctl mask dnf-makecache.timer dnf5-makecache.timer || true; \
     systemctl disable ufw.service || true; \
     systemctl set-default graphical.target
@@ -232,6 +252,12 @@ RUN set -eux; \
         exit 1; \
       fi; \
     }; \
+    assert_disabled() { \
+      if systemctl is-enabled "$1" >/dev/null 2>&1; then \
+        echo "unit must not be enabled: $1" >&2; \
+        exit 1; \
+      fi; \
+    }; \
     test -x /usr/bin/bootc; \
     test -x /usr/bin/ostree; \
     test -x /usr/bin/dnf5; \
@@ -247,6 +273,8 @@ RUN set -eux; \
     test -x /usr/bin/powerprofilesctl; \
     test -x /usr/bin/os-prober; \
     test -x /usr/bin/ntfsresize; \
+    test -x /usr/bin/ping; \
+    test -x /usr/bin/lspci; \
     test -x /usr/libexec/raku-kris-overlay; \
     test -f /usr/lib/systemd/system/raku-kris-overlay.service; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
@@ -254,17 +282,30 @@ RUN set -eux; \
     assert_not_in_file gpg-pubkey /usr/share/raku-kris/owned-packages.txt; \
     test -e /usr/share/factory/var/lib/raku-kris/packages.list; \
     test ! -s /usr/share/factory/var/lib/raku-kris/packages.list; \
+    test -f /usr/share/factory/var/lib/NetworkManager/NetworkManager.state; \
+    grep -Fxq 'WirelessEnabled=false' /usr/share/factory/var/lib/NetworkManager/NetworkManager.state; \
     test -f /usr/lib/tmpfiles.d/raku-kris.conf; \
     grep -Fxq 'd /var/lib/raku-kris 0755 root root -' \
       /usr/lib/tmpfiles.d/raku-kris.conf; \
     grep -Fxq 'C /var/lib/raku-kris/packages.list 0644 root root - /usr/share/factory/var/lib/raku-kris/packages.list' \
       /usr/lib/tmpfiles.d/raku-kris.conf; \
+    grep -Fxq 'C /var/lib/NetworkManager/NetworkManager.state 0600 root root - /usr/share/factory/var/lib/NetworkManager/NetworkManager.state' \
+      /usr/lib/tmpfiles.d/raku-kris.conf; \
+    test -f /usr/lib/sysctl.d/55-raku-hardening.conf; \
+    grep -Fxq 'kernel.kptr_restrict = 2' /usr/lib/sysctl.d/55-raku-hardening.conf; \
+    grep -Fxq 'fs.protected_regular = 2' /usr/lib/sysctl.d/55-raku-hardening.conf; \
+    grep -Fxq 'fs.protected_fifos = 2' /usr/lib/sysctl.d/55-raku-hardening.conf; \
+    grep -Fxq 'fs.suid_dumpable = 0' /usr/lib/sysctl.d/55-raku-hardening.conf; \
+    grep -Fxq 'AutoEnable=false' /etc/bluetooth/main.conf; \
+    grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop; \
+    ! firewall-offline-cmd --zone=public --list-services | tr ' ' '\n' | grep -Eq '^(ssh|mdns)$'; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
     grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
     grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
     grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-raku-kris.conf; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
-    rpm -q xcb-util-cursor; \
+    rpm -q xcb-util-cursor realtek-firmware iputils pciutils; \
+    find /usr/lib/firmware/rtl_nic -maxdepth 1 -name 'rtl8168h-2.fw*' -print -quit | grep -q .; \
     test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
@@ -273,22 +314,15 @@ RUN set -eux; \
     systemctl is-enabled plasmalogin.service | grep -qx enabled; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
     systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
-    if systemctl is-enabled systemd-homed.service >/dev/null 2>&1; then \
-      echo 'systemd-homed.service must not be enabled' >&2; \
-      exit 1; \
-    fi; \
-    if systemctl is-enabled dnf-makecache.timer >/dev/null 2>&1; then \
-      echo 'dnf-makecache.timer must not be enabled' >&2; \
-      exit 1; \
-    fi; \
-    if systemctl is-enabled dnf5-makecache.timer >/dev/null 2>&1; then \
-      echo 'dnf5-makecache.timer must not be enabled' >&2; \
-      exit 1; \
-    fi; \
-    if systemctl is-enabled ufw.service >/dev/null 2>&1; then \
-      echo 'ufw.service must not be enabled' >&2; \
-      exit 1; \
-    fi; \
+    assert_disabled systemd-homed.service; \
+    assert_disabled avahi-daemon.service; \
+    assert_disabled avahi-daemon.socket; \
+    assert_disabled mdmonitor.service; \
+    assert_disabled raid-check.timer; \
+    assert_disabled flatpak-add-fedora-repos.service; \
+    assert_disabled dnf-makecache.timer; \
+    assert_disabled dnf5-makecache.timer; \
+    assert_disabled ufw.service; \
     test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
     test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
     assert_absent glibc-all-langpacks; \

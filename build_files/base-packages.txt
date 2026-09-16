@@ -56,13 +56,15 @@ kinfocenter
 plasma-firewall
 firewalld
 
-# Mini-PC network + Bluetooth: MediaTek MT7921-class adapter.
+# Mini-PC network + Bluetooth: MediaTek MT7921-class adapter plus the Realtek
+# r8169 firmware observed as required on the physical validation system.
 # NetworkManager-wifi does not hard-require a Wi-Fi auth backend, so keep
 # wpa_supplicant explicit. bluedevil owns the KDE/BlueZ Bluetooth closure.
 NetworkManager-wifi
 wpa_supplicant
 bluedevil
 mt7xxx-firmware
+realtek-firmware
 
 # AMD APU / Vega-class graphics: only the hardware-specific firmware plus
 # userspace acceleration. Fedora 44's mesa-dri-drivers also provides the
@@ -87,11 +89,14 @@ cups-filters
 
 # Local desktop/system utilities. NTFS3 is provided by the Fedora kernel;
 # ntfs-3g is the userspace fallback and ntfsprogs supplies NTFS maintenance
-# tools for the real shared/triboot NTFS partition.
+# tools for the real shared/triboot NTFS partition. Keep basic network/PCI
+# diagnostics available on bare metal without growing the image into a toolkit.
 # os-prober is already owned by the pinned Fedora base (1.81-11.fc44 in
 # the verified build). Do not repeat it here: the base-collision check would
 # reject it. Containerfile asserts its installed package and executable.
 iproute
+iputils
+pciutils
 tar
 bash-completion
 ntfs-3g
