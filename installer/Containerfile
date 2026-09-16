@@ -14,7 +14,7 @@ RUN dnf install -qy --setopt=install_weak_deps=False \
     default-fonts-core-sans \
     default-fonts-other-sans \
     google-noto-sans-cjk-fonts \
-    xorrisofs \
+    xorriso \
     squashfs-tools && \
     dnf clean all
 
