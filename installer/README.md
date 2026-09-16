@@ -19,7 +19,7 @@ The payload image must already be accessible from the machine that will run Anac
 Set `RAKU_IMAGE` to the OCI image reference without a `registry:` prefix and run:
 
 ```text
-RAKU_IMAGE=your.registry.example/raku-kris:tag ./installer/build-installer.sh
+RAKU_IMAGE=your.registry.example/raku-kris:tag bash installer/build-installer.sh
 ```
 
 The script builds a Fedora 45 installer runtime and writes the ISO artifacts below `installer/output/`.
