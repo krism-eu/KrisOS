@@ -175,7 +175,7 @@ def transact(command, requested, dry_run=False):
     config.pkg_gpgcheck = True
     config.localpkg_gpgcheck = True
     base.setup()
-    if not base.lock_system_repo():
+    if not dry_run and not base.lock_system_repo():
         raise RuntimeError('Another package transaction holds the DNF system lock')
     try:
         check_base(owned)
@@ -241,7 +241,8 @@ def transact(command, requested, dry_run=False):
         sync_dir(STATE)
         print('Transaction complete. Requests saved for this and future deployments.')
     finally:
-        base.unlock_system_repo()
+        if not dry_run:
+            base.unlock_system_repo()
 
 
 def show_status():
@@ -273,7 +274,12 @@ def main():
         return
     if args.command == 'plan':
         guard()
-        transact('add', requested, dry_run=True)
+        fd = os.open(STATE / 'lock', os.O_RDONLY)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            transact('add', requested, dry_run=True)
+        finally:
+            os.close(fd)
         return
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo')
