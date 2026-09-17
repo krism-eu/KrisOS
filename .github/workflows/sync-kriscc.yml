@@ -1,0 +1,191 @@
+name: Sync krisCC component
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: sync-kriscc-component
+  cancel-in-progress: false
+
+jobs:
+  validate-and-pin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout stable KrisOS source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install component validation tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y rpm
+          rpm --version
+
+      - name: Resolve newest published krisCC component
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_sha="$(git rev-parse HEAD)"
+          source build_files/krisCC.lock
+          current_tag="$KRISCC_TAG"
+
+          latest_tag="$(gh release view --repo krism-eu/krisCC --json tagName --jq .tagName)"
+          [[ "$latest_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
+          echo "Current krisCC: $current_tag"
+          echo "Latest published krisCC: $latest_tag"
+
+          newest="$(printf '%s\n%s\n' "$current_tag" "$latest_tag" | sort -V | tail -n1)"
+          if [[ "$newest" != "$latest_tag" ]]; then
+            echo "Published latest release $latest_tag is older than pinned $current_tag; refusing downgrade."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$latest_tag" == "$current_tag" && -n "${KRISCC_SHA256:-}" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          gh release download "$latest_tag" --repo krism-eu/krisCC \
+            -p 'krisCC-*.fc44.x86_64.rpm' -p SHA256SUMS -D "$tmp"
+          mapfile -t rpms < <(find "$tmp" -maxdepth 1 -type f -name 'krisCC-*.fc44.x86_64.rpm' -printf '%f\n')
+          test "${#rpms[@]}" -eq 1
+          rpm_file="${rpms[0]}"
+          [[ "$rpm_file" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
+
+          test "$(rpm -qp --qf '%{NAME}\n' "$tmp/$rpm_file")" = 'krisCC'
+          test "$(rpm -qp --qf '%{ARCH}\n' "$tmp/$rpm_file")" = 'x86_64'
+          rpm_vr="$(rpm -qp --qf '%{VERSION}-%{RELEASE}\n' "$tmp/$rpm_file")"
+          rpm_vr_no_dist="${rpm_vr%.fc44}"
+          test "$rpm_vr_no_dist" != "$rpm_vr"
+          expected_tag="v${rpm_vr_no_dist}"
+          test "$latest_tag" = "$expected_tag"
+
+          checksum="$(awk -v f="$rpm_file" '$2 == f || $2 == "./" f {print $1}' "$tmp/SHA256SUMS")"
+          [[ "$checksum" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$checksum" "$rpm_file" > "$tmp/SELECTED_SHA256SUM"
+          (cd "$tmp" && sha256sum -c SELECTED_SHA256SUM)
+
+          cat > build_files/krisCC.lock <<EOF
+          KRISCC_TAG=$latest_tag
+          KRISCC_RPM=$rpm_file
+          KRISCC_SHA256=$checksum
+          EOF
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          echo "rpm=$rpm_file" >> "$GITHUB_OUTPUT"
+          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch exact candidate artifact
+        if: steps.candidate.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/fetch-kriscc-component.sh
+          source build_files/krisCC.lock
+          test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
+          test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
+          test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
+
+      - name: Install Podman
+        if: steps.candidate.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y podman
+          sudo podman version
+
+      - name: Build KrisOS candidate with new krisCC
+        if: steps.candidate.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman build --pull=always \
+            --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS' \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t localhost/krisos:kriscc-candidate . \
+            2>&1 | tee kriscc-candidate-build.log
+
+      - name: Validate candidate integration
+        if: steps.candidate.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:kriscc-candidate -lc '
+            rpm -q krisCC &&
+            rpm -V krisCC &&
+            test -x /usr/bin/krisCC &&
+            grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
+            grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
+            grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&
+            grep -Fxq "Exec=/usr/bin/krisCC --background" /etc/xdg/autostart/krisCC-background.desktop
+          '
+          sudo podman run --rm --security-opt label=disable \
+            -e RK_DISPOSABLE_CONTAINER_TEST=1 \
+            -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
+            --entrypoint python3 localhost/krisos:kriscc-candidate /tmp/test-rk.py \
+            2>&1 | tee kriscc-candidate-rk.log
+
+      - name: Pin validated component on main
+        id: promote
+        if: steps.candidate.outputs.changed == 'true'
+        env:
+          BASE_SHA: ${{ steps.candidate.outputs.base_sha }}
+          KRISCC_TAG: ${{ steps.candidate.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA" || {
+            echo 'main moved while validating krisCC; leaving the stable lock untouched and retrying on the next run.' >&2
+            exit 1
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add build_files/krisCC.lock
+          if git diff --cached --quiet; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Pin validated krisCC ${KRISCC_TAG}"
+          git push origin HEAD:main
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger stable KrisOS build after promotion
+        # GitHub intentionally suppresses push-triggered workflows for commits
+        # made with GITHUB_TOKEN, so dispatch the one stable build explicitly.
+        if: steps.promote.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run build-m1.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Preserve candidate logs
+        if: always() && steps.candidate.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: kriscc-candidate-${{ steps.candidate.outputs.tag }}
+          path: |
+            kriscc-candidate-build.log
+            kriscc-candidate-rk.log
+          if-no-files-found: ignore
