@@ -9,6 +9,7 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/krisos-overlay
+TimeoutStartSec=10min
 RemainAfterExit=yes
 
 [Install]

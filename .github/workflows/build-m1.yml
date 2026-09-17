@@ -48,7 +48,7 @@ jobs:
           source build_files/krisCC.lock
           [[ "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
           [[ "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
-          if [[ -n "${KRISCC_SHA256:-}" ]]; then [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]; fi
+          [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]
           grep -Fq 'COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm' Containerfile
           ! grep -Fq 'github.com/krism-eu/krisCC.git' Containerfile
           ! grep -Fq 'KRISCC_COMMIT' Containerfile
@@ -63,6 +63,11 @@ jobs:
           grep -Fq 'state=/var/lib/krisos' systemd/krisos-overlay.sh
           grep -Fq 'After=ostree-remount.service' systemd/krisos-overlay.service
           grep -Fq 'Before=local-fs.target shutdown.target' systemd/krisos-overlay.service
+          grep -Fq 'TimeoutStartSec=10min' systemd/krisos-overlay.service
+          grep -Fq 'ExecStart=/usr/bin/rk sync' systemd/krisos-sync.service
+          grep -Fq 'ConditionPathExists=/var/lib/krisos/needs-sync' systemd/krisos-sync.service
+          grep -Fq 'ConditionPathExists=/run/krisos/overlay-mounted' systemd/krisos-sync.service
+          grep -Fq 'TimeoutStartSec=10min' systemd/krisos-sync.service
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
           grep -Fxq 'graphical' kickstart/krisos.ks
@@ -81,7 +86,7 @@ jobs:
           test -s build_files/krisCC/SHA256SUMS
           test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
           test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
-          if [[ -n "${KRISCC_SHA256:-}" ]]; then test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"; fi
+          test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
 
       - name: Install Podman
         shell: bash
@@ -130,7 +135,8 @@ jobs:
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
             grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&
-            grep -Fxq "Exec=/usr/bin/krisCC --background" /etc/xdg/autostart/krisCC-background.desktop
+            grep -Fxq "Exec=/usr/bin/krisCC --background" /etc/xdg/autostart/krisCC-background.desktop &&
+            env QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic KRISCC_SMOKE_TEST=1 /usr/bin/krisCC --background
           '
 
       - name: Real RPM package layer integration

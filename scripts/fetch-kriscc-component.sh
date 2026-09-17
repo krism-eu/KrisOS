@@ -15,6 +15,7 @@ fi
 source "$lock"
 : "${KRISCC_TAG:?KRISCC_TAG missing from lock}"
 : "${KRISCC_RPM:?KRISCC_RPM missing from lock}"
+: "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
 
 if [[ ! "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; then
   echo "Invalid KRISCC_TAG: $KRISCC_TAG" >&2
@@ -24,7 +25,7 @@ if [[ ! "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rp
   echo "Invalid KRISCC_RPM: $KRISCC_RPM" >&2
   exit 1
 fi
-if [[ -n "${KRISCC_SHA256:-}" && ! "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+if [[ ! "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
   echo "Invalid KRISCC_SHA256" >&2
   exit 1
 fi
@@ -56,7 +57,7 @@ fi
 checksum="${BASH_REMATCH[1]}"
 printf '%s  %s\n' "$checksum" "$KRISCC_RPM" | sha256sum -c -
 
-if [[ -n "${KRISCC_SHA256:-}" && "$checksum" != "$KRISCC_SHA256" ]]; then
+if [[ "$checksum" != "$KRISCC_SHA256" ]]; then
   echo "krisCC checksum does not match lock" >&2
   exit 1
 fi

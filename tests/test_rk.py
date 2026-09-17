@@ -54,9 +54,10 @@ class Policy(unittest.TestCase):
     def test_intent_atomic_replacement(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'packages.list'
-            rk.atomic(path, 'tree\n')
-            rk.atomic(path, 'tree\nunzip\n')
+            rk.atomic(path, 'tree\n', mode=0o644)
+            rk.atomic(path, 'tree\nunzip\n', mode=0o644)
             self.assertEqual(path.read_text(), 'tree\nunzip\n')
+            self.assertEqual(oct(path.stat().st_mode & 0o777), '0o644')
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), ['packages.list'])
 
     def test_guard_does_not_reconstruct_deployment_from_bootcsum(self):
