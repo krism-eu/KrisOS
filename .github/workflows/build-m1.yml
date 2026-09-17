@@ -137,6 +137,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout exact tested source
@@ -151,6 +152,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y podman
           sudo podman version
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
 
       - name: Rebuild release image from pinned source
         shell: bash
@@ -213,6 +217,27 @@ jobs:
           grep -Eq '^sha256:[0-9a-f]{64}$' publish.digest
           printf 'Published digest: %s\n' "$(cat publish.digest)"
 
+      - name: Sign and verify published digest with Cosign
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          digest="$(cat publish.digest)"
+          image="ghcr.io/krism-eu/krisos@${digest}"
+          export DOCKER_CONFIG="${RUNNER_TEMP}/cosign-docker"
+          mkdir -p "$DOCKER_CONFIG"
+          printf '%s' "$GHCR_TOKEN" | podman login \
+            --authfile "$DOCKER_CONFIG/config.json" \
+            ghcr.io --username "$GHCR_USER" --password-stdin
+
+          cosign sign --yes "$image" 2>&1 | tee cosign-sign.log
+          cosign verify \
+            --certificate-identity "https://github.com/krism-eu/KrisOS/.github/workflows/build-m1.yml@refs/heads/main" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$image" 2>&1 | tee cosign-verify.log
+
       - name: Verify anonymous GHCR pull
         shell: bash
         run: |
@@ -248,6 +273,8 @@ jobs:
             publish.digest
             publish-immutable.log
             publish-m1.log
+            cosign-sign.log
+            cosign-verify.log
             anonymous-pull-immutable.log
             anonymous-pull-m1.log
           if-no-files-found: ignore
