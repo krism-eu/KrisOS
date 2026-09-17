@@ -1,12 +1,15 @@
 #!/usr/bin/python3
 """Real Fedora DNF/RPM integration in a DISPOSABLE container, never on a host.
 
-Only the VM-specific mount/SELinux guard is replaced. Solver, downloads,
-signature checks, RPM tests, real install/remove and intent writes are exercised.
-This test does not claim to test OverlayFS, reboot or deployment recovery.
+Only the VM-specific mount/SELinux guard is replaced. Solver, read-only plan,
+downloads, signature checks, RPM tests, real install/remove and intent writes
+are exercised. This test does not claim to test OverlayFS, reboot or deployment
+recovery.
 """
 import importlib.machinery
+import io
 import os
+from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
 import tempfile
@@ -25,6 +28,17 @@ with tempfile.TemporaryDirectory() as directory:
     )
     rk.mount_snapshot = lambda: fake_mount
     rk.guard = lambda: fake_mount
+
+    preview = io.StringIO()
+    with redirect_stdout(preview):
+        rk.transact('add', {'tree'}, dry_run=True)
+    plan = preview.getvalue()
+    assert 'Transaction Summary:' in plan
+    assert 'tree-' in plan
+    assert subprocess.run(['rpm', '-q', 'tree'], stdout=subprocess.DEVNULL).returncode != 0
+    assert (rk.STATE / 'packages.list').read_text() == ''
+    assert not (rk.STATE / 'pending').exists()
+
     rk.transact('add', {'tree'})
     subprocess.run(['/usr/bin/tree', '--version'], check=True)
     assert (rk.STATE / 'packages.list').read_text() == 'tree\n'
@@ -32,4 +46,4 @@ with tempfile.TemporaryDirectory() as directory:
     rk.transact('rm', {'tree'})
     assert not Path('/usr/bin/tree').exists()
     assert (rk.STATE / 'packages.list').read_text() == ''
-print('PASS: real signed RPM install/remove, immutable identities and package intent')
+print('PASS: read-only plan plus real signed RPM install/remove, immutable identities and package intent')
