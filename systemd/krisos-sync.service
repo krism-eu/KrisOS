@@ -2,6 +2,7 @@
 Description=Restore requested KrisOS packages on the current deployment
 After=multi-user.target krisos-overlay.service
 ConditionPathExists=/var/lib/krisos/needs-sync
+ConditionPathExists=/run/krisos/overlay-mounted
 ConditionKernelCommandLine=!krisos.overlay=off
 
 [Service]

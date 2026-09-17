@@ -119,11 +119,17 @@ upper="$state/upper"
 work="$state/work"
 saved="$state/deployment"
 needs_sync="$state/needs-sync"
-# M0: inert marker. M1: reinstall committed requests after cache reset;
-# only rk clears it after successful synchronization.
+runtime=/run/krisos
+overlay_ready="$runtime/overlay-mounted"
+# needs-sync is persistent package-recovery intent. overlay-mounted is volatile
+# proof that this boot actually reached a writable /usr overlay.
 
 if ! mkdir -p "$state"; then
     log "WARNING: cannot create state directory — continuing on base /usr"
+    exit 0
+fi
+if ! mkdir -p "$runtime"; then
+    log "WARNING: cannot create runtime state — continuing on base /usr"
     exit 0
 fi
 
@@ -198,7 +204,10 @@ if ! mount -t overlay overlay \
 fi
 
 # From here on, avoid spawning helpers from the freshly overlaid /usr. Shell
-# builtins are enough to record state and finish the oneshot safely.
+# builtins are enough to publish readiness, record state and finish safely.
+if ! : > "$overlay_ready"; then
+    log "WARNING: overlay mounted, but readiness marker could not be created; automatic sync disabled for this boot"
+fi
 if ! printf '%s\n' "$deployment_id" > "$saved"; then
     log "WARNING: mounted, but deployment identity could not be persisted"
 fi
