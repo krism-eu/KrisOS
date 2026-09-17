@@ -24,10 +24,21 @@ def mount_snapshot():
 
 
 def names(values):
+    """Validate exact package names supplied by users or persisted intent."""
     for value in values:
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+_.-]*', value) or value.endswith(('.rpm', '.i686', '.x86_64', '.noarch')):
             raise RuntimeError(f'Use an exact package name, without architecture, URL or RPM path: {value}')
     return set(values)
+
+
+def owned_names(values):
+    """Load image-generated RPM names without applying the CLI grammar policy."""
+    result = set()
+    for value in values:
+        if not value or value != value.strip() or any(char.isspace() for char in value) or '\x00' in value:
+            raise RuntimeError(f'Invalid immutable package name in {OWNED}: {value!r}')
+        result.add(value)
+    return result
 
 
 def atomic(path, contents):
@@ -52,7 +63,7 @@ def sync_dir(path):
         os.close(fd)
 
 
-def guard():
+def guard(allow_pending=False):
     # The overlay hook owns deployment identity and invalidation. rk validates
     # only the live writable overlay and transaction-recovery state here.
     mount = mount_snapshot()
@@ -63,7 +74,7 @@ def guard():
     for option in ('rw', 'upperdir=/var/lib/krisos/upper', 'workdir=/var/lib/krisos/work'):
         if option not in opts:
             raise RuntimeError(f'Unexpected /usr mount: missing {option}')
-    if (STATE / 'pending').exists():
+    if not allow_pending and (STATE / 'pending').exists():
         raise RuntimeError('Interrupted transaction requires reboot before rk runs again')
     if output('getenforce') != 'Enforcing' or 'object_r:usr_t:' not in output('ls', '-Zd', '/usr'):
         raise RuntimeError('SELinux must be enforcing and /usr labeled usr_t')
@@ -115,7 +126,7 @@ def validate_payload(path):
 def transact(command, requested):
     import libdnf5
 
-    owned = names(OWNED.read_text().splitlines())
+    owned = owned_names(OWNED.read_text().splitlines())
     intent = names((STATE / 'packages.list').read_text().splitlines())
     if (STATE / 'pending').exists():
         raise RuntimeError('Interrupted transaction requires reboot before rk runs again')
@@ -216,6 +227,21 @@ def transact(command, requested):
         base.unlock_system_repo()
 
 
+def show_status():
+    try:
+        mount = guard(allow_pending=True)
+        print('Overlay: ready')
+        print('Mount:', mount)
+    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+        print('Overlay: degraded')
+        print('Overlay error:', error)
+    print('Pending recovery:', (STATE / 'pending').exists())
+    print('Needs sync:', (STATE / 'needs-sync').exists())
+    package_file = STATE / 'packages.list'
+    if package_file.exists():
+        print(package_file.read_text(), end='')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('add', 'rm', 'sync', 'status'))
@@ -225,10 +251,7 @@ def main():
         parser.error('add/rm require package names; sync/status take no packages')
     requested = names(args.packages)
     if args.command == 'status':
-        print(guard())
-        print('Pending recovery:', (STATE / 'pending').exists())
-        print('Needs sync:', (STATE / 'needs-sync').exists())
-        print((STATE / 'packages.list').read_text(), end='')
+        show_status()
         return
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo')
