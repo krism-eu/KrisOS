@@ -64,8 +64,6 @@ def sync_dir(path):
 
 
 def guard(allow_pending=False):
-    # The overlay hook owns deployment identity and invalidation. rk validates
-    # only the live writable overlay and transaction-recovery state here.
     mount = mount_snapshot()
     fields = mount.split()
     if len(fields) != 3 or fields[1] != 'overlay':
@@ -102,8 +100,6 @@ def validate_plan(rows, owned, remove):
 
 
 def validate_payload(path):
-    # Initial support is deliberately concrete: ordinary /usr payloads without
-    # package scriptlets. Fedora's installed RPM triggers still run normally.
     for flag in ('--scripts', '--triggers', '--filetriggers'):
         if output('rpm', '-qp', flag, path):
             raise RuntimeError('Package scriptlets/triggers are not supported in this release: ' + path)
@@ -123,9 +119,24 @@ def validate_payload(path):
             raise RuntimeError('Additive package would overwrite an existing path: ' + filename)
 
 
-def transact(command, requested):
-    import libdnf5
+def print_plan(requested, incoming):
+    requested_names = set(requested)
+    requested_packages = sorted((pkg for pkg in incoming if pkg.get_name() in requested_names), key=lambda pkg: pkg.get_nevra())
+    dependencies = sorted((pkg for pkg in incoming if pkg.get_name() not in requested_names), key=lambda pkg: pkg.get_nevra())
+    if requested_packages:
+        print('Installing:')
+        for pkg in requested_packages:
+            print('  ' + pkg.get_nevra())
+    if dependencies:
+        print('Installing dependencies:')
+        for pkg in dependencies:
+            print('  ' + pkg.get_nevra())
+    print('Transaction Summary:')
+    print(f'Install {len(incoming)} package(s)')
 
+
+def transact(command, requested, dry_run=False):
+    import libdnf5
     owned = owned_names(OWNED.read_text().splitlines())
     intent = names((STATE / 'packages.list').read_text().splitlines())
     if (STATE / 'pending').exists():
@@ -142,12 +153,14 @@ def transact(command, requested):
     before = guard()
     check_base(owned)
     if not install and not remove:
+        if dry_run:
+            print('Nothing to install; package request is already satisfied.')
+            return
         atomic(STATE / 'packages.list', ''.join(n + '\n' for n in sorted(target)))
         (STATE / 'needs-sync').unlink(missing_ok=True)
         sync_dir(STATE)
         print('Nothing to install; package intent synchronized.')
         return
-
     base = libdnf5.base.Base()
     base.load_config()
     config = base.get_config()
@@ -168,7 +181,6 @@ def transact(command, requested):
         sack = base.get_repo_sack()
         sack.create_repos_from_system_configuration()
         for repo in libdnf5.repo.RepoQuery(base):
-            # M1 supports the distribution repositories only.
             repo.get_config().enabled = repo.get_id() in ('fedora', 'updates')
             repo.get_config().pkg_gpgcheck = True
         sack.load_repos()
@@ -188,11 +200,15 @@ def transact(command, requested):
             rows.append((pkg.get_name(), pkg.get_arch(), action))
             if action == 'Install':
                 incoming.append(pkg)
-            print(action, pkg.get_nevra(), flush=True)
+            if not dry_run:
+                print(action, pkg.get_nevra(), flush=True)
         validate_plan(rows, owned, remove)
         installed_names = set(output('rpm', '-qa', '--qf', '%{NAME}\n').splitlines())
         if install - installed_names - {p.get_name() for p in incoming}:
             raise RuntimeError('Request must resolve to that exact package name, not a capability or NEVRA')
+        if dry_run:
+            print_plan(requested, incoming)
+            return
         tx.download()
         if not tx.check_gpg_signatures():
             raise RuntimeError('RPM signature verification failed; no transaction applied')
@@ -202,14 +218,11 @@ def transact(command, requested):
             raise RuntimeError('RPM transaction test failed; no transaction applied')
         if guard() != before:
             raise RuntimeError('/usr mount changed during transaction preparation')
-        # Preserve last committed intent until the RPM transaction succeeds.
         atomic(STATE / 'pending', 'Rebuild overlay from packages.list after reboot\n')
         result = tx.run()
         if int(result) != 0:
             raise RuntimeError('RPM transaction failed: ' + tx.transaction_result_to_string(result))
         check_base(owned)
-        # pending is expected during the committed transaction itself; validate
-        # the mount directly rather than re-entering guard() until it is cleared.
         after = mount_snapshot()
         if after != before:
             raise RuntimeError('/usr mount changed during RPM transaction')
@@ -244,18 +257,22 @@ def show_status():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('add', 'rm', 'sync', 'status'))
+    parser.add_argument('command', choices=('add', 'rm', 'sync', 'status', 'plan'))
     parser.add_argument('packages', nargs='*')
     args = parser.parse_args()
-    if bool(args.packages) != (args.command in ('add', 'rm')):
-        parser.error('add/rm require package names; sync/status take no packages')
+    takes_packages = args.command in ('add', 'rm', 'plan')
+    if bool(args.packages) != takes_packages:
+        parser.error('add/rm/plan require package names; sync/status take no packages')
     requested = names(args.packages)
     if args.command == 'status':
         show_status()
         return
+    if args.command == 'plan':
+        guard()
+        transact('add', requested, dry_run=True)
+        return
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo')
-    # Never create state on an unrelated host.
     guard()
     with (STATE / 'lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
