@@ -13,44 +13,49 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
-installer_image="localhost/krisos-installer:f45"
+installer_image="localhost/krisos-installer-build68:f45"
+payload_ref="${KRISOS_PAYLOAD_REF:-ghcr.io/krism-eu/krisos:ded161ca602b626d62214d8d78cb2ae60036bfaf}"
 image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder-cli:latest}"
 
-# A failed privileged builder run may leave root-owned partial output behind.
-# The path is fixed below the repository and is always recreated from scratch.
 sudo rm -rf -- "$output_dir"
 mkdir -p "$output_dir"
 
-printf 'Building generic Fedora 45 KrisOS installer runtime...\n'
+printf 'Pulling exact KrisOS Build #68 payload...\n'
+sudo podman pull "$payload_ref"
+printf 'Payload image ID: '
+sudo podman image inspect "$payload_ref" --format '{{.Id}}'
+
+printf 'Building Fedora 45 Anaconda bootc installer runtime...\n'
 sudo podman build \
     --pull=always \
     -f "$repo_root/installer/Containerfile" \
     -t "$installer_image" \
     "$repo_root/installer"
 
-printf 'Pulling containerized Image Builder...\n'
+printf 'Pulling Image Builder...\n'
 sudo podman pull "$image_builder_image"
-
-printf 'Image Builder image digest: '
+printf 'Image Builder digest: '
 sudo podman image inspect "$image_builder_image" --format '{{.Digest}}'
 
-printf 'Building bootc-generic-iso...\n'
+printf 'Building bootc-installer ISO with embedded KrisOS Build #68...\n'
 sudo podman run \
     --rm \
     --privileged \
-    --security-opt label=disable \
+    --security-opt label=type:unconfined_t \
     -v /var/lib/containers/storage:/var/lib/containers/storage \
     -v "$output_dir:/output" \
     "$image_builder_image" \
     build \
     --output-dir /output \
     --bootc-ref "$installer_image" \
+    --bootc-installer-payload-ref "$payload_ref" \
     --bootc-default-fs ext4 \
-    bootc-generic-iso
+    bootc-installer
 
 sudo chown -R "$(id -u):$(id -g)" "$output_dir"
 
-if ! find "$output_dir" -type f -name '*.iso' -print -quit | grep -q .; then
+iso="$(find "$output_dir" -type f -name '*.iso' -print -quit)"
+if [[ -z "$iso" ]]; then
     echo "Image Builder completed without producing an ISO." >&2
     exit 1
 fi
@@ -62,5 +67,6 @@ fi
         | xargs -0 sha256sum > SHA256SUMS
 )
 
+printf '\nInstaller ISO:\n%s\n' "$iso"
 printf '\nInstaller artifacts:\n'
-find "$output_dir" -maxdepth 3 -type f -printf '%p\n' | sort
+find "$output_dir" -maxdepth 3 -type f -printf '%s %p\n' | sort -n
