@@ -123,7 +123,28 @@ def validate_payload(path):
             raise RuntimeError('Additive package would overwrite an existing path: ' + filename)
 
 
-def transact(command, requested):
+def print_plan(requested, incoming):
+    requested_names = set(requested)
+    requested_packages = sorted(
+        (pkg for pkg in incoming if pkg.get_name() in requested_names),
+        key=lambda pkg: pkg.get_nevra())
+    dependencies = sorted(
+        (pkg for pkg in incoming if pkg.get_name() not in requested_names),
+        key=lambda pkg: pkg.get_nevra())
+
+    if requested_packages:
+        print('Installing:')
+        for pkg in requested_packages:
+            print('  ' + pkg.get_nevra())
+    if dependencies:
+        print('Installing dependencies:')
+        for pkg in dependencies:
+            print('  ' + pkg.get_nevra())
+    print('Transaction Summary:')
+    print(f'Install {len(incoming)} package(s)')
+
+
+def transact(command, requested, dry_run=False):
     import libdnf5
 
     owned = owned_names(OWNED.read_text().splitlines())
@@ -142,6 +163,9 @@ def transact(command, requested):
     before = guard()
     check_base(owned)
     if not install and not remove:
+        if dry_run:
+            print('Nothing to install; package request is already satisfied.')
+            return
         atomic(STATE / 'packages.list', ''.join(n + '\n' for n in sorted(target)))
         (STATE / 'needs-sync').unlink(missing_ok=True)
         sync_dir(STATE)
@@ -188,11 +212,16 @@ def transact(command, requested):
             rows.append((pkg.get_name(), pkg.get_arch(), action))
             if action == 'Install':
                 incoming.append(pkg)
-            print(action, pkg.get_nevra(), flush=True)
+            if not dry_run:
+                print(action, pkg.get_nevra(), flush=True)
         validate_plan(rows, owned, remove)
         installed_names = set(output('rpm', '-qa', '--qf', '%{NAME}\n').splitlines())
         if install - installed_names - {p.get_name() for p in incoming}:
             raise RuntimeError('Request must resolve to that exact package name, not a capability or NEVRA')
+        if dry_run:
+            print_plan(requested, incoming)
+            return
+
         tx.download()
         if not tx.check_gpg_signatures():
             raise RuntimeError('RPM signature verification failed; no transaction applied')
@@ -244,14 +273,21 @@ def show_status():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('add', 'rm', 'sync', 'status'))
+    parser.add_argument('command', choices=('add', 'rm', 'sync', 'status', 'plan'))
     parser.add_argument('packages', nargs='*')
     args = parser.parse_args()
-    if bool(args.packages) != (args.command in ('add', 'rm')):
-        parser.error('add/rm require package names; sync/status take no packages')
+    takes_packages = args.command in ('add', 'rm', 'plan')
+    if bool(args.packages) != takes_packages:
+        parser.error('add/rm/plan require package names; sync/status take no packages')
     requested = names(args.packages)
     if args.command == 'status':
         show_status()
+        return
+    if args.command == 'plan':
+        # Read-only preview for krisCC. It shares the solver, repository and
+        # immutable-base policy with rk add but never downloads or mutates.
+        guard()
+        transact('add', requested, dry_run=True)
         return
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo')
