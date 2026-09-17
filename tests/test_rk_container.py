@@ -28,8 +28,11 @@ with tempfile.TemporaryDirectory() as directory:
     rk.transact('add', {'tree'})
     subprocess.run(['/usr/bin/tree', '--version'], check=True)
     assert (rk.STATE / 'packages.list').read_text() == 'tree\n'
+    assert oct((rk.STATE / 'packages.list').stat().st_mode & 0o777) == '0o644'
     assert not (rk.STATE / 'pending').exists()
     rk.transact('rm', {'tree'})
     assert not Path('/usr/bin/tree').exists()
     assert (rk.STATE / 'packages.list').read_text() == ''
+    rk.transact('sync', set())
+    assert oct((rk.STATE / 'packages.list').stat().st_mode & 0o777) == '0o644'
 print('PASS: real signed RPM install/remove, immutable identities and package intent')

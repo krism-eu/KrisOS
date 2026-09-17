@@ -60,6 +60,12 @@ class Policy(unittest.TestCase):
             self.assertEqual(oct(path.stat().st_mode & 0o777), '0o644')
             self.assertEqual(sorted(p.name for p in path.parent.iterdir()), ['packages.list'])
 
+    def test_atomic_default_mode_remains_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'pending'
+            rk.atomic(path, 'recover\n')
+            self.assertEqual(oct(path.stat().st_mode & 0o777), '0o600')
+
     def test_guard_does_not_reconstruct_deployment_from_bootcsum(self):
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(rk, 'STATE', Path(directory)), \

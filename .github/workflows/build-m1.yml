@@ -46,6 +46,7 @@ jobs:
           python3 tests/test_overlay_identity.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           source build_files/krisCC.lock
+          : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
           [[ "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
           [[ "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
           [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]
@@ -81,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           source build_files/krisCC.lock
+          : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
           bash scripts/fetch-kriscc-component.sh
           test -f build_files/krisCC/krisCC.rpm
           test -s build_files/krisCC/SHA256SUMS

@@ -41,6 +41,7 @@ jobs:
           set -euo pipefail
           base_sha="$(git rev-parse HEAD)"
           source build_files/krisCC.lock
+          : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
           current_tag="$KRISCC_TAG"
 
           latest_tag="$(gh release view --repo krism-eu/krisCC --json tagName --jq .tagName)"
@@ -55,7 +56,7 @@ jobs:
             exit 0
           fi
 
-          if [[ "$latest_tag" == "$current_tag" && -n "${KRISCC_SHA256:-}" ]]; then
+          if [[ "$latest_tag" == "$current_tag" ]]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -99,8 +100,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/fetch-kriscc-component.sh
           source build_files/krisCC.lock
+          : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
+          bash scripts/fetch-kriscc-component.sh
           test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
           test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
           test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
