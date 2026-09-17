@@ -17,19 +17,21 @@ permissions:
 
 concurrency:
   group: build-m1-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     name: Fedora 44 pinned build
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
+      packages: write
+      id-token: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Validate source invariants
         shell: bash
@@ -37,13 +39,19 @@ jobs:
           set -euo pipefail
           bash -n systemd/krisos-overlay.sh
           bash -n tests/boot-check.sh
+          bash -n scripts/fetch-kriscc-component.sh
           python3 -m py_compile bin/rk
           python3 tests/test_rk.py
           python3 tests/test_overlay_recovery.py
           python3 tests/test_overlay_identity.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
-          grep -Eq '^ARG KRISCC_COMMIT=[0-9a-f]{40}$' Containerfile
-          grep -Fq 'https://github.com/krism-eu/krisCC.git' Containerfile
+          source build_files/krisCC.lock
+          [[ "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
+          [[ "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
+          if [[ -n "${KRISCC_SHA256:-}" ]]; then [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]; fi
+          grep -Fq 'COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm' Containerfile
+          ! grep -Fq 'github.com/krism-eu/krisCC.git' Containerfile
+          ! grep -Fq 'KRISCC_COMMIT' Containerfile
           grep -Fxq 'ARG RELEASE=0.1.0-m1' Containerfile
           grep -Fq 'rpm -q krisCC' Containerfile
           grep -Fq 'grep -Fxq krisCC /usr/share/krisos/owned-packages.txt' Containerfile
@@ -62,6 +70,18 @@ jobs:
           ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup)([[:space:]]|$)' kickstart/krisos.ks
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
+
+      - name: Fetch verified krisCC component
+        shell: bash
+        run: |
+          set -euo pipefail
+          source build_files/krisCC.lock
+          bash scripts/fetch-kriscc-component.sh
+          test -f build_files/krisCC/krisCC.rpm
+          test -s build_files/krisCC/SHA256SUMS
+          test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
+          test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
+          if [[ -n "${KRISCC_SHA256:-}" ]]; then test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"; fi
 
       - name: Install Podman
         shell: bash
@@ -87,6 +107,8 @@ jobs:
           sudo podman build \
             --pull=always \
             "${args[@]}" \
+            --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS' \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             -t localhost/krisos:m1 \
             . 2>&1 | tee build.log
 
@@ -99,8 +121,11 @@ jobs:
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/krism-eu/KrisOS"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
           sudo podman run --rm --entrypoint /bin/bash localhost/krisos:m1 -lc '
             rpm -q krisCC &&
+            rpm -V krisCC &&
             test -x /usr/bin/krisCC &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
@@ -118,102 +143,66 @@ jobs:
             --entrypoint python3 localhost/krisos:m1 /tmp/test-rk.py \
             2>&1 | tee rk-integration.log
 
-      - name: Preserve complete logs
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Install Cosign
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          name: build-and-rk-logs
-          path: |
-            build.log
-            rk-integration.log
-          if-no-files-found: ignore
-
-  publish:
-    name: Publish M1 to GHCR
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 75
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout exact tested source
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-
-      - name: Install Podman
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y podman
-          sudo podman version
-
-      - name: Rebuild release image from pinned source
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo podman build \
-            --pull=always \
-            --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS' \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            -t localhost/krisos:m1 \
-            . 2>&1 | tee publish-build.log
-
-      - name: Revalidate release image
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/krism-eu/KrisOS"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
-          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:m1 -lc '
-            rpm -q krisCC &&
-            test -x /usr/bin/krisCC &&
-            grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
-            grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
-            grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&
-            grep -Fxq "Exec=/usr/bin/krisCC --background" /etc/xdg/autostart/krisCC-background.desktop
-          '
-          sudo podman run --rm --security-opt label=disable \
-            -e RK_DISPOSABLE_CONTAINER_TEST=1 \
-            -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
-            --entrypoint python3 localhost/krisos:m1 /tmp/test-rk.py \
-            2>&1 | tee publish-rk-integration.log
+          cosign-release: 'v3.0.6'
 
       - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          printf '%s' "$GHCR_TOKEN" | sudo podman login ghcr.io --username "$GHCR_USER" --password-stdin
+          mkdir -p "$HOME/.docker"
+          printf '%s' "$GHCR_TOKEN" | podman login \
+            --authfile "$HOME/.docker/config.json" \
+            ghcr.io --username "$GHCR_USER" --password-stdin
 
-      - name: Publish mutable and immutable tags
+      - name: Publish immutable image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
           immutable="ghcr.io/krism-eu/krisos:${GITHUB_SHA}"
-          mutable="ghcr.io/krism-eu/krisos:m1"
-
           sudo podman tag localhost/krisos:m1 "$immutable"
-          sudo podman tag localhost/krisos:m1 "$mutable"
-
-          sudo podman push --digestfile publish.digest "$immutable" 2>&1 | tee publish-immutable.log
-          sudo podman push "$mutable" 2>&1 | tee publish-m1.log
-
+          sudo podman push \
+            --authfile "$HOME/.docker/config.json" \
+            --digestfile publish.digest \
+            "$immutable" 2>&1 | tee publish-immutable.log
           test -s publish.digest
           grep -Eq '^sha256:[0-9a-f]{64}$' publish.digest
-          printf 'Published digest: %s\n' "$(cat publish.digest)"
+          printf 'Published immutable digest: %s\n' "$(cat publish.digest)"
+
+      - name: Sign and verify immutable digest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="$(cat publish.digest)"
+          image="ghcr.io/krism-eu/krisos@${digest}"
+          cosign sign --yes "$image"
+          cosign verify \
+            --certificate-identity 'https://github.com/krism-eu/KrisOS/.github/workflows/build-m1.yml@refs/heads/main' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            "$image" 2>&1 | tee cosign-verify.log
+
+      - name: Publish mutable M1 tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mutable="ghcr.io/krism-eu/krisos:m1"
+          sudo podman tag localhost/krisos:m1 "$mutable"
+          sudo podman push \
+            --authfile "$HOME/.docker/config.json" \
+            "$mutable" 2>&1 | tee publish-m1.log
 
       - name: Verify anonymous GHCR pull
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -221,9 +210,7 @@ jobs:
           mutable="ghcr.io/krism-eu/krisos:m1"
           expected="$(cat publish.digest)"
 
-          sudo podman logout ghcr.io || true
           sudo podman rmi -f "$immutable" "$mutable" localhost/krisos:m1 || true
-
           authfile="$(mktemp)"
           trap 'rm -f "$authfile"' EXIT
           printf '{"auths":{}}\n' > "$authfile"
@@ -237,16 +224,17 @@ jobs:
           mutable_digest="$(sudo podman inspect "$mutable" --format '{{.Digest}}')"
           test "$mutable_digest" = "$expected"
 
-      - name: Preserve publication logs
+      - name: Preserve complete logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: m1-ghcr-publication-${{ github.sha }}
+          name: build-m1-${{ github.sha }}
           path: |
-            publish-build.log
-            publish-rk-integration.log
+            build.log
+            rk-integration.log
             publish.digest
             publish-immutable.log
+            cosign-verify.log
             publish-m1.log
             anonymous-pull-immutable.log
             anonymous-pull-m1.log
