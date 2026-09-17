@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 import importlib.machinery
 import io
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -21,6 +22,18 @@ def guard_output(*args):
     if args == ('rpm', '--eval', '%{_dbpath}'):
         return '/usr/lib/sysimage/rpm'
     raise AssertionError(f'unexpected command: {args!r}')
+
+
+class FakePackage:
+    def __init__(self, name, nevra):
+        self._name = name
+        self._nevra = nevra
+
+    def get_name(self):
+        return self._name
+
+    def get_nevra(self):
+        return self._nevra
 
 
 class Policy(unittest.TestCase):
@@ -91,6 +104,28 @@ class Policy(unittest.TestCase):
             self.assertIn('Pending recovery: True', text)
             self.assertIn('Needs sync: True', text)
             self.assertIn('tree', text)
+
+    def test_plan_output_distinguishes_requested_package_and_dependencies(self):
+        incoming = [
+            FakePackage('tree', 'tree-2.2.1-1.fc44.x86_64'),
+            FakePackage('libfoo', 'libfoo-1.0-2.fc44.x86_64'),
+        ]
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            rk.print_plan({'tree'}, incoming)
+        text = stream.getvalue()
+        self.assertIn('Installing:\n  tree-2.2.1-1.fc44.x86_64', text)
+        self.assertIn('Installing dependencies:\n  libfoo-1.0-2.fc44.x86_64', text)
+        self.assertIn('Transaction Summary:\nInstall 2 package(s)', text)
+
+    def test_plan_dispatch_is_read_only_and_does_not_require_root(self):
+        with mock.patch.object(sys, 'argv', ['rk', 'plan', 'tree']), \
+                mock.patch.object(rk, 'guard') as guard, \
+                mock.patch.object(rk, 'transact') as transact, \
+                mock.patch.object(rk.os, 'geteuid', return_value=1000):
+            rk.main()
+        guard.assert_called_once_with()
+        transact.assert_called_once_with('add', {'tree'}, dry_run=True)
 
 
 if __name__ == '__main__':
