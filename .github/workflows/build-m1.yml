@@ -56,6 +56,9 @@ jobs:
           grep -Fxq 'ARG RELEASE=0.1.0-m1' Containerfile
           grep -Fq 'rpm -q krisCC' Containerfile
           grep -Fq 'grep -Fxq krisCC /usr/share/krisos/owned-packages.txt' Containerfile
+          grep -Fq 'COPY systemd/krisos-sync.timer /usr/lib/systemd/system/krisos-sync.timer' Containerfile
+          grep -Fq 'systemctl enable krisos-sync.timer' Containerfile
+          ! grep -Fq 'systemctl enable krisos-sync.service' Containerfile
           grep -Fxq '[*]' build_files/90-krisos-privacy.repo
           grep -Fxq 'countme=false' build_files/90-krisos-privacy.repo
           grep -Fxq '[UserFeedback]' build_files/KDE-UserFeedback.conf
@@ -69,6 +72,15 @@ jobs:
           grep -Fq 'ConditionPathExists=/var/lib/krisos/needs-sync' systemd/krisos-sync.service
           grep -Fq 'ConditionPathExists=/run/krisos/overlay-mounted' systemd/krisos-sync.service
           grep -Fq 'TimeoutStartSec=10min' systemd/krisos-sync.service
+          grep -Fq 'Restart=on-failure' systemd/krisos-sync.service
+          grep -Fq 'RestartSec=30s' systemd/krisos-sync.service
+          grep -Fq 'StartLimitIntervalSec=10min' systemd/krisos-sync.service
+          grep -Fq 'StartLimitBurst=3' systemd/krisos-sync.service
+          ! grep -Fq 'WantedBy=graphical.target' systemd/krisos-sync.service
+          grep -Fq 'OnBootSec=1min' systemd/krisos-sync.timer
+          grep -Fq 'OnUnitInactiveSec=10min' systemd/krisos-sync.timer
+          grep -Fq 'Unit=krisos-sync.service' systemd/krisos-sync.timer
+          grep -Fq 'WantedBy=timers.target' systemd/krisos-sync.timer
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
           grep -Fxq 'graphical' kickstart/krisos.ks
@@ -134,6 +146,7 @@ jobs:
             rpm -q krisCC &&
             rpm -V krisCC &&
             test -x /usr/bin/krisCC &&
+            systemctl is-enabled krisos-sync.timer | grep -qx enabled &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
             grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&

@@ -4,11 +4,12 @@ After=multi-user.target krisos-overlay.service
 ConditionPathExists=/var/lib/krisos/needs-sync
 ConditionPathExists=/run/krisos/overlay-mounted
 ConditionKernelCommandLine=!krisos.overlay=off
+StartLimitIntervalSec=10min
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/rk sync
 TimeoutStartSec=10min
-
-[Install]
-WantedBy=graphical.target
+Restart=on-failure
+RestartSec=30s

@@ -208,7 +208,7 @@ RUN set -eux; \
 COPY bin/rk /usr/bin/rk
 RUN chmod 0755 /usr/bin/rk
 COPY systemd/krisos-sync.service /usr/lib/systemd/system/krisos-sync.service
-RUN systemctl enable krisos-sync.service
+COPY systemd/krisos-sync.timer /usr/lib/systemd/system/krisos-sync.timer
 
 # Persistent /usr overlay. Mount it in early real-root userspace rather than in
 # initrd: OSTree has already exposed writable /var, while local-fs.target still
@@ -257,7 +257,7 @@ RUN set -eux; \
     firewall-offline-cmd --zone=public --remove-service-from-zone=ssh; \
     firewall-offline-cmd --zone=public --remove-service-from-zone=mdns; \
     systemctl enable krisos-overlay.service; \
-    systemctl enable krisos-sync.service; \
+    systemctl enable krisos-sync.timer; \
     systemctl enable --force plasmalogin.service; \
     systemctl enable firewalld.service; \
     systemctl enable systemd-timesyncd.service; \
@@ -315,6 +315,8 @@ RUN set -eux; \
     test -x /usr/bin/ntfsresize; \
     test -x /usr/libexec/krisos-overlay; \
     test -f /usr/lib/systemd/system/krisos-overlay.service; \
+    test -f /usr/lib/systemd/system/krisos-sync.service; \
+    test -f /usr/lib/systemd/system/krisos-sync.timer; \
     test -e /usr/lib/systemd/system/plasmalogin.service; \
     test -s /usr/share/krisos/owned-packages.txt; \
     grep -Fxq krisCC /usr/share/krisos/owned-packages.txt; \
@@ -356,7 +358,7 @@ RUN set -eux; \
     test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
     test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
     systemctl is-enabled krisos-overlay.service | grep -qx enabled; \
-    systemctl is-enabled krisos-sync.service | grep -qx enabled; \
+    systemctl is-enabled krisos-sync.timer | grep -qx enabled; \
     systemctl is-enabled plasmalogin.service | grep -qx enabled; \
     systemctl is-enabled firewalld.service | grep -qx enabled; \
     systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
