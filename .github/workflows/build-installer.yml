@@ -1,45 +1,49 @@
-name: Build Installer ISO
+name: Build KrisOS Build 68 ISO
 
 on:
-  workflow_dispatch:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - installer-build68
     paths:
       - 'installer/**'
       - '.github/workflows/build-installer.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-installer-${{ github.ref }}
+  group: installer-build68-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   installer:
-    name: Fedora 45 generic installer ISO
+    name: Fedora 45 bootc installer ISO
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate installer sources
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Validate pinned installer inputs
         shell: bash
         run: |
           set -euo pipefail
           bash -n installer/build-installer.sh
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
-          grep -Fq 'COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml' installer/Containerfile
-          grep -Fq 'COPY anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf' installer/Containerfile
-          ! grep -Fq "<<'EOF'" installer/Containerfile
-          grep -Fq 'label: "KRISOS-F45"' installer/iso.yaml
-          grep -Fq 'inst.wait_for_disks=0' installer/iso.yaml
-          grep -Fq 'inst.noibft' installer/iso.yaml
-          grep -Fq 'bootc-generic-iso' installer/build-installer.sh
-          grep -Fq 'ghcr.io/osbuild/image-builder-cli:latest' installer/build-installer.sh
-          ! grep -Eq 'bootc --source-imgref=|REGISTRY/IMAGE' installer/Containerfile installer/iso.yaml
+          grep -Fq 'anaconda-install-env-deps' installer/Containerfile
+          grep -Fq 'lorax-templates-generic' installer/Containerfile
+          grep -Fq 'bootc-installer' installer/build-installer.sh
+          grep -Fq 'ghcr.io/krism-eu/krisos:ded161ca602b626d62214d8d78cb2ae60036bfaf' installer/build-installer.sh
+          ! grep -Fq 'bootc --source-imgref=' installer/Containerfile
 
       - name: Install Podman
         shell: bash
@@ -48,14 +52,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y podman
           sudo podman version
+          df -h /
 
-      - name: Build installer ISO
+      - name: Build offline installer ISO
         shell: bash
         run: |
           set -euo pipefail
           bash installer/build-installer.sh 2>&1 | tee installer-build.log
 
-      - name: Inspect generated artifacts
+      - name: Verify generated ISO
         shell: bash
         run: |
           set -euo pipefail
@@ -66,11 +71,12 @@ jobs:
             sha256sum --check SHA256SUMS
           )
           find installer/output -maxdepth 3 -type f -printf '%s %p\n' | sort -n
+          df -h /
 
-      - name: Upload installer artifact
+      - name: Upload ready ISO
         uses: actions/upload-artifact@v4
         with:
-          name: krisos-installer-f45-${{ github.sha }}
+          name: krisos-build68-offline-installer
           path: |
             installer/output/**
             installer-build.log
