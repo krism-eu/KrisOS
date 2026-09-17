@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 """Policy tests: reject unsafe solved transactions before any RPM changes."""
+from contextlib import redirect_stdout
 import importlib.machinery
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -44,6 +46,11 @@ class Policy(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(RuntimeError):
                 rk.names([name])
 
+    def test_owned_names_are_not_revalidated_as_cli_input(self):
+        self.assertEqual(rk.owned_names(['ordinary', 'future.x86_64']), {'ordinary', 'future.x86_64'})
+        with self.assertRaises(RuntimeError):
+            rk.owned_names(['bad name'])
+
     def test_intent_atomic_replacement(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'packages.list'
@@ -67,6 +74,23 @@ class Policy(unittest.TestCase):
             (Path(directory) / 'pending').write_text('recover\n')
             with self.assertRaisesRegex(RuntimeError, 'Interrupted transaction requires reboot'):
                 rk.guard()
+
+    def test_status_remains_readable_during_pending_recovery(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)), \
+                mock.patch.object(rk, 'output', side_effect=guard_output):
+            state = Path(directory)
+            (state / 'pending').write_text('recover\n')
+            (state / 'needs-sync').write_text('')
+            (state / 'packages.list').write_text('tree\n')
+            stream = io.StringIO()
+            with redirect_stdout(stream):
+                rk.show_status()
+            text = stream.getvalue()
+            self.assertIn('Overlay: ready', text)
+            self.assertIn('Pending recovery: True', text)
+            self.assertIn('Needs sync: True', text)
+            self.assertIn('tree', text)
 
 
 if __name__ == '__main__':
