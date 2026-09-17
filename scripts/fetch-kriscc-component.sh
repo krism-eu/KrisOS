@@ -44,9 +44,18 @@ else
 fi
 
 cd "$tmp"
-sha256sum -c SHA256SUMS
-checksum="$(awk -v f="$KRISCC_RPM" '$2 == f || $2 == "./" f {print $1}' SHA256SUMS)"
-[[ "$checksum" =~ ^[0-9a-f]{64}$ ]]
+mapfile -t checksum_lines < <(awk -v f="$KRISCC_RPM" '$2 == f || $2 == "./" f {print}' SHA256SUMS)
+if [[ ${#checksum_lines[@]} -ne 1 ]]; then
+  echo "Expected exactly one checksum entry for $KRISCC_RPM" >&2
+  exit 1
+fi
+if [[ ! "${checksum_lines[0]}" =~ ^([0-9a-f]{64})[[:space:]]+\*?\.?/?${KRISCC_RPM//./\.}$ ]]; then
+  echo "Invalid checksum entry for $KRISCC_RPM" >&2
+  exit 1
+fi
+checksum="${BASH_REMATCH[1]}"
+printf '%s  %s\n' "$checksum" "$KRISCC_RPM" | sha256sum -c -
+
 if [[ -n "${KRISCC_SHA256:-}" && "$checksum" != "$KRISCC_SHA256" ]]; then
   echo "krisCC checksum does not match lock" >&2
   exit 1
