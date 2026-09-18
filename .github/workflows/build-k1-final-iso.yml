@@ -190,8 +190,9 @@ jobs:
           authfile="$(mktemp)"
           trap 'rm -f "$authfile"' EXIT
           printf '{"auths":{}}\n' > "$authfile"
-          sudo podman pull --authfile "$authfile" "$CANDIDATE_REF"
-          test "$(sudo podman image inspect "$CANDIDATE_REF" --format '{{.Digest}}')" = "$CANDIDATE_DIGEST"
+          sudo podman pull --authfile "$authfile" --digestfile anonymous-pull.digest "$CANDIDATE_REF"
+          test -s anonymous-pull.digest
+          test "$(cat anonymous-pull.digest)" = "$CANDIDATE_DIGEST"
 
       - name: Build offline Anaconda ISO from candidate payload
         shell: bash
@@ -276,6 +277,7 @@ jobs:
             candidate-payload.digest
             candidate-publish.log
             candidate-cosign-verify.log
+            anonymous-pull.digest
             installer-build.log
             iso-pvd.txt
             final-iso.sha256
