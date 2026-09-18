@@ -9,6 +9,7 @@ This directory contains the minimal installer path for KrisOS.
 - Remote bootc payload selected at install time through Kickstart.
 - No destructive automatic partitioning.
 - Manual ext4 layout with separate `/var/home` supported by Fedora 45 Anaconda.
+- Manual user creation: the intended desktop user must be marked as administrator (wheel); no account credentials or autologin are baked into the image.
 - Reduce avoidable disk-discovery delay without disabling generic storage discovery.
 
 ## Build
@@ -51,9 +52,22 @@ Do not use automatic partition clearing while validating the installer. In Anaco
 - dedicated ext4 partition -> `/`
 - dedicated ext4 partition -> `/var/home`
 
+Do not select automatic storage, automatic partition clearing, LVM autopartitioning, or a swap partition for the K1.0 validation install.
+
 `/var/home` is intentional: KrisOS exposes `/home` as a symlink to `/var/home`, matching bootc/OSTree conventions.
 
 No swap partition is required; KrisOS uses zram.
+
+## User creation
+
+Keep user creation interactive in Anaconda. For the K1.0 physical validation:
+
+- create the intended desktop account manually;
+- enable the Anaconda **administrator** option so the account is a member of `wheel`;
+- do not enable automatic login;
+- do not bake a password, password hash, or user-specific secret into the installer image.
+
+KrisOS sets the image-level `useradd` default home root to `/var/home` and rebuilds the SELinux homedir policy before Anaconda creates users. The installed-system validation checks both `wheel` membership and the real `/var/home/<user>` SELinux label.
 
 ## Disk discovery policy
 
