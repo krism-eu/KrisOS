@@ -42,6 +42,8 @@ jobs:
           test "$KRISCC_SHA256" = "c99f7d7668b13a29bef3daac9dc377be4b7a25dc0acfc367f2ee6764e5ab7c7d"
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
           grep -Fq 'bootc-installer' installer/build-installer.sh
+          grep -Fq 'ghcr.io/osbuild/image-builder:latest' installer/build-installer.sh
+          grep -Fq -- '--with-manifest' installer/build-installer.sh
           grep -Fq 'localhost/krisos-iso-payload:20260918' installer/build-installer.sh
           ! grep -Fq 'ded161ca602b626d62214d8d78cb2ae60036bfaf' installer/build-installer.sh
           ! grep -Fq 'bootc --source-imgref=' installer/Containerfile
@@ -124,6 +126,34 @@ jobs:
             cd installer/output
             sha256sum --check SHA256SUMS
           )
+
+          manifest="$(find installer/output -type f -name '*.osbuild-manifest.json' -print -quit)"
+          test -n "$manifest"
+          python3 - "$manifest" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              manifest = json.load(stream)
+
+          methods = []
+          def walk(value):
+              if isinstance(value, dict):
+                  if value.get("type") == "org.osbuild.squashfs":
+                      compression = (value.get("options") or {}).get("compression") or {}
+                      methods.append(compression.get("method"))
+                  for child in value.values():
+                      walk(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      walk(child)
+
+          walk(manifest)
+          if "zstd" not in methods:
+              raise SystemExit(f"installer SquashFS is not zstd-compressed: {methods!r}")
+          print("Verified installer SquashFS compression: zstd")
+          PY
+
           printf 'ISO bytes: '
           stat -c '%s' "$iso"
           find installer/output -maxdepth 3 -type f -printf '%s %p\n' | sort -n
