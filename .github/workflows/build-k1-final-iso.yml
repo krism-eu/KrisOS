@@ -52,7 +52,8 @@ jobs:
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
           grep -Fq 'anaconda-install-env-deps' installer/Containerfile
-          grep -Fq 'label: "KRISOS-K1"' installer/iso.yaml
+          grep -Fq 'label: "Fedora-S-dvd-x86_64-45"' installer/iso.yaml
+          grep -Fq 'inst.stage2=hd:LABEL=Fedora-S-dvd-x86_64-45' installer/iso.yaml
           grep -Fq 'bootc-installer' installer/build-installer.sh
           grep -Fq -- '--bootc-default-fs ext4' installer/build-installer.sh
 
@@ -222,7 +223,19 @@ jobs:
           )
 
           xorriso -indev "$iso" -pvd_info 2>&1 | tee iso-pvd.txt
-          grep -Fq 'Volume id    : KRISOS-K1' iso-pvd.txt
+          grep -Fq "Volume id    : 'Fedora-S-dvd-x86_64-45'" iso-pvd.txt
+
+          rm -f /tmp/krisos-iso-grub.cfg
+          grub_found=0
+          for grub_path in /EFI/BOOT/grub.cfg /boot/grub2/grub.cfg; do
+            if xorriso -osirrox on -indev "$iso" -extract "$grub_path" /tmp/krisos-iso-grub.cfg >/dev/null 2>&1; then
+              grub_found=1
+              break
+            fi
+          done
+          test "$grub_found" -eq 1
+          grep -Fq 'inst.stage2=hd:LABEL=Fedora-S-dvd-x86_64-45' /tmp/krisos-iso-grub.cfg
+          grep -Fq 'Install KrisOS K1.0' /tmp/krisos-iso-grub.cfg
 
           manifest="$(find installer/output -type f -name '*.osbuild-manifest.json' -print -quit)"
           test -n "$manifest"
