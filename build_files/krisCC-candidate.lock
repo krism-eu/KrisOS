@@ -1,0 +1,6 @@
+# krisCC restyle candidate used only by k1.0-final-restyle-fixes.
+# Stable main remains pinned separately in build_files/krisCC.lock.
+KRISCC_TAG=v0.5.1-8
+KRISCC_RPM=krisCC-0.5.1-8.fc44.x86_64.rpm
+KRISCC_SHA256=673f5f16c34a5c80ba0bd713e40c8c84be2baf6d0cdb8f877fcc8a8b700dedf1
+KRISCC_COMMIT=32d202a79e05453e181f93f2e834c136b1481ff8
