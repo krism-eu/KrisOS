@@ -123,7 +123,7 @@ jobs:
             for kernel_dir in /usr/lib/modules/*; do
               test -f "$kernel_dir/modules.dep" || continue
               test -s "$kernel_dir/initramfs.img"
-              lsinitrd "$kernel_dir/initramfs.img" | grep -Fq "kernel/x86/microcode/AuthenticAMD.bin"
+              lsinitrd "$kernel_dir/initramfs.img" | grep -F "kernel/x86/microcode/AuthenticAMD.bin" >/dev/null
               count=$((count + 1))
             done
             test "$count" -ge 1
