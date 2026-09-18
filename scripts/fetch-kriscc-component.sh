@@ -3,7 +3,10 @@ set -euo pipefail
 
 repo="krism-eu/krisCC"
 root="${GITHUB_WORKSPACE:-$(pwd)}"
-lock="$root/build_files/krisCC.lock"
+lock="${KRISCC_LOCK_FILE:-$root/build_files/krisCC.lock}"
+if [[ "$lock" != /* ]]; then
+  lock="$root/$lock"
+fi
 out="$root/build_files/krisCC"
 
 if [[ ! -f "$lock" ]]; then
