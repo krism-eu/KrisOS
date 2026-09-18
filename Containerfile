@@ -184,18 +184,6 @@ RUN set -eux; \
       /tmp/fedora-base-nevra.before \
       /tmp/fedora-base-nevra.after
 
-# Install the separately built krisCC component artifact. The workflow places
-# the exact release RPM in the build context after verifying its SHA256SUMS.
-# rpm (not dnf) is deliberate here: every runtime dependency must already be
-# part of the declared image, so this step cannot resolve by replacing base RPMs.
-COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm
-RUN set -eux; \
-    rpm -Uvh /tmp/krisCC.rpm; \
-    rpm -q krisCC; \
-    rpm -V krisCC; \
-    rm -f /tmp/krisCC.rpm
-COPY build_files/krisCC-autostart.desktop /etc/xdg/autostart/krisCC-background.desktop
-
 # Add Fedora bindings without replacing any image package.
 RUN set -eux; \
     excludes="$(rpm -qa --qf '%{NAME}\n' | sort -u | paste -sd,)"; \
@@ -220,6 +208,20 @@ RUN chmod 0755 /usr/libexec/krisos-overlay
 # Conservative hardening: only deltas from Fedora defaults that passed real
 # Plasma/Wayland, networking, audio, rootless Podman and S3 suspend testing.
 COPY build_files/55-krisos-hardening.conf /usr/lib/sysctl.d/55-krisos-hardening.conf
+
+# Install the separately built krisCC component artifact late in the image so
+# krisCC-only releases invalidate the smallest possible set of downstream layers.
+# The workflow places
+# the exact release RPM in the build context after verifying its SHA256SUMS.
+# rpm (not dnf) is deliberate here: every runtime dependency must already be
+# part of the declared image, so this step cannot resolve by replacing base RPMs.
+COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm
+RUN set -eux; \
+    rpm -Uvh /tmp/krisCC.rpm; \
+    rpm -q krisCC; \
+    rpm -V krisCC; \
+    rm -f /tmp/krisCC.rpm
+COPY build_files/krisCC-autostart.desktop /etc/xdg/autostart/krisCC-background.desktop
 
 # Snapshot every immutable package name owned by the final image: pinned Fedora
 # base plus the KrisOS delta. RPM key pseudo-packages are deliberately not
