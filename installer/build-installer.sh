@@ -13,44 +13,72 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
-installer_image="localhost/krisos-installer:f45"
-image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder-cli:latest}"
+installer_image="${KRISOS_INSTALLER_IMAGE:-localhost/krisos-installer-complete:f45}"
+payload_ref="${KRISOS_PAYLOAD_REF:?Set KRISOS_PAYLOAD_REF to the validated KrisOS update-channel reference}"
+payload_image_id="${KRISOS_PAYLOAD_IMAGE_ID:?Set KRISOS_PAYLOAD_IMAGE_ID to the verified local payload image ID}"
+image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder@sha256:ee8729672bb2e901a9942d1e272b615cd695a58f5417c73d3d0b1b275d833fc5}"
 
-# A failed privileged builder run may leave root-owned partial output behind.
-# The path is fixed below the repository and is always recreated from scratch.
+if [[ "$payload_ref" == localhost/* || "$payload_ref" == *@sha256:* ]]; then
+    echo "Complete ISO builds require a published update-channel ref, not localhost or a digest target." >&2
+    exit 1
+fi
+if [[ "$image_builder_image" != *@sha256:* ]]; then
+    echo "Complete ISO builds require an immutable Image Builder digest reference." >&2
+    exit 1
+fi
+
 sudo rm -rf -- "$output_dir"
 mkdir -p "$output_dir"
 
-printf 'Building generic Fedora 45 KrisOS installer runtime...\n'
+printf 'Using pre-verified KrisOS payload channel: %s\n' "$payload_ref"
+if ! sudo podman image exists "$payload_ref"; then
+    echo "Verified local payload image is missing: $payload_ref" >&2
+    exit 1
+fi
+payload_actual_id="$(sudo podman image inspect "$payload_ref" --format '{{.Id}}')"
+if [[ "$payload_actual_id" != "$payload_image_id" ]]; then
+    printf 'Payload image ID mismatch: expected %s, got %s\n' "$payload_image_id" "$payload_actual_id" >&2
+    exit 1
+fi
+printf 'Payload image ID: %s\n' "$payload_actual_id"
+
+printf 'Building Fedora 45 Anaconda bootc installer runtime...\n'
 sudo podman build \
     --pull=always \
     -f "$repo_root/installer/Containerfile" \
     -t "$installer_image" \
     "$repo_root/installer"
 
-printf 'Pulling containerized Image Builder...\n'
+printf 'Pulling pinned Image Builder...\n'
 sudo podman pull "$image_builder_image"
+builder_expected="${image_builder_image##*@}"
+builder_actual="$(sudo podman image inspect "$image_builder_image" --format '{{.Digest}}')"
+if [[ "$builder_actual" != "$builder_expected" ]]; then
+    printf 'Image Builder digest mismatch: expected %s, got %s\n' "$builder_expected" "$builder_actual" >&2
+    exit 1
+fi
+printf 'Image Builder digest: %s\n' "$builder_actual"
 
-printf 'Image Builder image digest: '
-sudo podman image inspect "$image_builder_image" --format '{{.Digest}}'
-
-printf 'Building bootc-generic-iso...\n'
+printf 'Building bootc-installer ISO with embedded payload %s...\n' "$payload_ref"
 sudo podman run \
     --rm \
     --privileged \
-    --security-opt label=disable \
+    --security-opt label=type:unconfined_t \
     -v /var/lib/containers/storage:/var/lib/containers/storage \
     -v "$output_dir:/output" \
     "$image_builder_image" \
     build \
+    --with-manifest \
     --output-dir /output \
     --bootc-ref "$installer_image" \
+    --bootc-installer-payload-ref "$payload_ref" \
     --bootc-default-fs ext4 \
-    bootc-generic-iso
+    bootc-installer
 
 sudo chown -R "$(id -u):$(id -g)" "$output_dir"
 
-if ! find "$output_dir" -type f -name '*.iso' -print -quit | grep -q .; then
+iso="$(find "$output_dir" -type f -name '*.iso' -print -quit)"
+if [[ -z "$iso" ]]; then
     echo "Image Builder completed without producing an ISO." >&2
     exit 1
 fi
@@ -62,5 +90,6 @@ fi
         | xargs -0 sha256sum > SHA256SUMS
 )
 
+printf '\nInstaller ISO:\n%s\n' "$iso"
 printf '\nInstaller artifacts:\n'
-find "$output_dir" -maxdepth 3 -type f -printf '%p\n' | sort
+find "$output_dir" -maxdepth 3 -type f -printf '%s %p\n' | sort -n
