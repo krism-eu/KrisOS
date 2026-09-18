@@ -1,8 +1,8 @@
-name: Build complete KrisOS ISO
+name: Build KrisOS ISO K1.0
 
 on:
   push:
-    branches: [iso-complete-0.5.1-7]
+    branches: [iso-k1.0]
   workflow_dispatch:
 
 permissions:
@@ -10,12 +10,12 @@ permissions:
   packages: read
 
 concurrency:
-  group: iso-complete-0.5.1-7-${{ github.ref }}
+  group: iso-k1.0-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   complete-iso:
-    name: Main payload + offline installer ISO
+    name: KrisOS K1.0 from validated main payload
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
@@ -55,6 +55,8 @@ jobs:
 
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
           grep -Fq 'anaconda-install-env-deps' installer/Containerfile
+          grep -Fq 'label: "KRISOS-K1"' installer/iso.yaml
+          grep -Fq 'KrisOS-ISO-K1.0-x86_64' installer/build-installer.sh
           grep -Fq 'bootc-installer' installer/build-installer.sh
           grep -Fq -- '--with-manifest' installer/build-installer.sh
           grep -Fq 'ghcr.io/osbuild/image-builder@sha256:ee8729672bb2e901a9942d1e272b615cd695a58f5417c73d3d0b1b275d833fc5' installer/build-installer.sh
@@ -175,7 +177,7 @@ jobs:
       - name: Upload ISO and QA bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: krisos-complete-main-0.5.1-7
+          name: krisos-iso-k1.0
           path: |
             installer/output/**
             installer-build.log

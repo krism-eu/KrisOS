@@ -13,7 +13,7 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
-installer_image="${KRISOS_INSTALLER_IMAGE:-localhost/krisos-installer-complete:f45}"
+installer_image="${KRISOS_INSTALLER_IMAGE:-localhost/krisos-installer:k1.0}"
 payload_ref="${KRISOS_PAYLOAD_REF:?Set KRISOS_PAYLOAD_REF to the validated KrisOS update-channel reference}"
 payload_image_id="${KRISOS_PAYLOAD_IMAGE_ID:?Set KRISOS_PAYLOAD_IMAGE_ID to the verified local payload image ID}"
 image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder@sha256:ee8729672bb2e901a9942d1e272b615cd695a58f5417c73d3d0b1b275d833fc5}"
@@ -77,10 +77,24 @@ sudo podman run \
 
 sudo chown -R "$(id -u):$(id -g)" "$output_dir"
 
-iso="$(find "$output_dir" -type f -name '*.iso' -print -quit)"
-if [[ -z "$iso" ]]; then
+raw_iso="$(find "$output_dir" -type f -name '*.iso' -print -quit)"
+if [[ -z "$raw_iso" ]]; then
     echo "Image Builder completed without producing an ISO." >&2
     exit 1
+fi
+
+release_base="KrisOS-ISO-K1.0-x86_64"
+iso="$output_dir/$release_base.iso"
+if [[ "$raw_iso" != "$iso" ]]; then
+    mv -f -- "$raw_iso" "$iso"
+fi
+
+raw_manifest="$(find "$output_dir" -type f -name '*.osbuild-manifest.json' -print -quit)"
+if [[ -n "$raw_manifest" ]]; then
+    manifest="$output_dir/$release_base.osbuild-manifest.json"
+    if [[ "$raw_manifest" != "$manifest" ]]; then
+        mv -f -- "$raw_manifest" "$manifest"
+    fi
 fi
 
 (
@@ -90,6 +104,6 @@ fi
         | xargs -0 sha256sum > SHA256SUMS
 )
 
-printf '\nInstaller ISO:\n%s\n' "$iso"
+printf '\nKrisOS K1.0 installer ISO:\n%s\n' "$iso"
 printf '\nInstaller artifacts:\n'
 find "$output_dir" -maxdepth 3 -type f -printf '%s %p\n' | sort -n
