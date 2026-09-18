@@ -3,6 +3,7 @@
 from contextlib import redirect_stdout
 import importlib.machinery
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
