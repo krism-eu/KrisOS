@@ -238,7 +238,7 @@ RUN set -eux; \
       dracut --force --no-hostonly --early-microcode --reproducible --zstd \
         "$kernel_dir/initramfs.img" "$kver"; \
       test -s "$kernel_dir/initramfs.img"; \
-      lsinitrd "$kernel_dir/initramfs.img" | grep -Fq 'kernel/x86/microcode/AuthenticAMD.bin'; \
+      lsinitrd "$kernel_dir/initramfs.img" | grep -F 'kernel/x86/microcode/AuthenticAMD.bin' >/dev/null; \
       generated=$((generated + 1)); \
     done; \
     test "$generated" -ge 1
@@ -343,7 +343,7 @@ RUN set -eux; \
     for kernel_dir in /usr/lib/modules/*; do \
       test -f "$kernel_dir/modules.dep" || continue; \
       test -s "$kernel_dir/initramfs.img"; \
-      lsinitrd "$kernel_dir/initramfs.img" | grep -Fq 'kernel/x86/microcode/AuthenticAMD.bin'; \
+      lsinitrd "$kernel_dir/initramfs.img" | grep -F 'kernel/x86/microcode/AuthenticAMD.bin' >/dev/null; \
       kernel_count=$((kernel_count + 1)); \
     done; \
     test "$kernel_count" -ge 1; \
