@@ -43,11 +43,23 @@ fi
 printf 'Payload image ID: %s\n' "$payload_actual_id"
 
 printf 'Building Fedora 45 Anaconda bootc installer runtime...\n'
-sudo podman build \
-    --pull=always \
-    -f "$repo_root/installer/Containerfile" \
-    -t "$installer_image" \
-    "$repo_root/installer"
+build_ok=0
+for attempt in 1 2 3; do
+    if sudo podman build \
+        --pull=always \
+        -f "$repo_root/installer/Containerfile" \
+        -t "$installer_image" \
+        "$repo_root/installer"; then
+        build_ok=1
+        break
+    fi
+    printf 'Installer runtime build attempt %s/3 failed; retrying after a transient registry error...\n' "$attempt" >&2
+    sleep 10
+done
+if [[ "$build_ok" -ne 1 ]]; then
+    echo "Unable to build the Fedora 45 Anaconda installer runtime after 3 attempts." >&2
+    exit 1
+fi
 
 printf 'Pulling pinned Image Builder...\n'
 sudo podman pull "$image_builder_image"
