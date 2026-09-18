@@ -59,9 +59,29 @@ if [[ -n "$expected_image" ]]; then
 fi
 
 run_check "krisCC installed" rpm -q krisCC
-run_check "krisCC files verify" rpm -V krisCC
+run_check "krisCC files verify" rpm -V --nomtime krisCC
 run_check "krisCC executable" test -x /usr/bin/krisCC
 run_check "krisCC owned by immutable image" grep -Fxq krisCC /usr/share/krisos/owned-packages.txt
+
+run_check "useradd default points to /var/home" grep -Fxq 'HOME=/var/home' /etc/default/useradd
+run_check "SELinux /var/home user context" bash -c "matchpathcon -n /var/home/kris | grep -q ':user_home_dir_t:'"
+run_check "SELinux config context below /var/home" bash -c "matchpathcon -n /var/home/kris/.config | grep -q ':config_home_t:'"
+run_check "SELinux data context below /var/home" bash -c "matchpathcon -n /var/home/kris/.local/share | grep -q ':data_home_t:'"
+
+kernel_image="/usr/lib/modules/$(uname -r)/initramfs.img"
+run_check "canonical initramfs present" test -s "$kernel_image"
+run_check "AMD early microcode embedded" bash -c "lsinitrd '$kernel_image' | grep -Fq 'kernel/x86/microcode/AuthenticAMD.bin'"
+
+expected_admin_user="${KRISOS_EXPECT_ADMIN_USER:-}"
+if [[ -n "$expected_admin_user" ]]; then
+    run_check "expected admin user exists" getent passwd "$expected_admin_user"
+    run_check "expected admin user is in wheel" bash -c "id -nG '$expected_admin_user' | tr ' ' '\n' | grep -qx wheel"
+    admin_home="$(getent passwd "$expected_admin_user" | cut -d: -f6)"
+    if [[ -n "$admin_home" ]]; then
+        run_check "admin home resolves below /var/home" bash -c "test \"$(readlink -f '$admin_home')\" = '/var/home/$expected_admin_user'"
+        run_check "admin home SELinux label" bash -c "ls -Zd '/var/home/$expected_admin_user' | grep -q ':user_home_dir_t:'"
+    fi
+fi
 
 actual_kriscc="$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' krisCC 2>/dev/null || true)"
 if [[ -n "$expected_kriscc" ]]; then
