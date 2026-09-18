@@ -28,7 +28,7 @@ Example:
 export KRISOS_E2E_TARGET=qa@192.0.2.10
 export KRISOS_E2E_SWITCH_IMAGE=ghcr.io/krism-eu/krisos:<immutable-commit>
 export KRISOS_EXPECT_IMAGE="$KRISOS_E2E_SWITCH_IMAGE"
-export KRISOS_EXPECT_KRISCC=0.5.1-6.fc44.x86_64
+export KRISOS_EXPECT_KRISCC=0.5.1-7.fc44.x86_64
 tests/run-release-vm.sh
 ```
 

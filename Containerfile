@@ -154,7 +154,8 @@ RUN set -eux; \
       ntfsprogs \
       os-prober \
       zram-generator \
-      zram-generator-defaults; \
+      zram-generator-defaults \
+      grubby; \
     rpm -q --whatprovides mesa-va-drivers; \
     test -e /usr/lib64/dri/radeonsi_drv_video.so; \
     test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
@@ -295,6 +296,9 @@ RUN set -eux; \
     test -x /usr/bin/bootc; \
     test -x /usr/bin/ostree; \
     test -x /usr/bin/dnf5; \
+    test -x /usr/bin/efibootmgr; \
+    test -x /usr/bin/grubby; \
+    test -x /usr/bin/grub2-reboot; \
     test -x /usr/bin/krisCC; \
     rpm -q krisCC; \
     rpm -V krisCC; \
