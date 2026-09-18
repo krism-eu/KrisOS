@@ -15,7 +15,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
 installer_image="${KRISOS_INSTALLER_IMAGE:-localhost/krisos-installer-complete:f45}"
 payload_ref="${KRISOS_PAYLOAD_REF:-localhost/krisos-iso-payload:20260918}"
-image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder-cli:latest}"
+image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder:latest}"
 
 sudo rm -rf -- "$output_dir"
 mkdir -p "$output_dir"
@@ -55,6 +55,7 @@ sudo podman run \
     -v "$output_dir:/output" \
     "$image_builder_image" \
     build \
+    --with-manifest \
     --output-dir /output \
     --bootc-ref "$installer_image" \
     --bootc-installer-payload-ref "$payload_ref" \
