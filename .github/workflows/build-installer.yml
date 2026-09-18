@@ -1,26 +1,23 @@
-name: Build KrisOS Build 68 ISO
+name: Build complete KrisOS ISO
 
 on:
   push:
     branches:
-      - installer-build68
-    paths:
-      - 'installer/**'
-      - '.github/workflows/build-installer.yml'
+      - iso-complete-20260918
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: installer-build68-${{ github.ref }}
+  group: iso-complete-20260918-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  installer:
-    name: Fedora 45 bootc installer ISO
+  complete-iso:
+    name: KrisOS payload + offline installer ISO
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 150
 
     steps:
       - name: Checkout
@@ -33,29 +30,84 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
           df -h /
 
-      - name: Validate pinned installer inputs
+      - name: Validate pinned inputs
         shell: bash
         run: |
           set -euo pipefail
           bash -n installer/build-installer.sh
+          bash -n scripts/fetch-kriscc-component.sh
+          source build_files/krisCC.lock
+          test "$KRISCC_TAG" = "v0.5.0-1"
+          test "$KRISCC_RPM" = "krisCC-0.5.0-1.fc44.x86_64.rpm"
+          test "$KRISCC_SHA256" = "c99f7d7668b13a29bef3daac9dc377be4b7a25dc0acfc367f2ee6764e5ab7c7d"
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
-          grep -Fq 'anaconda-install-env-deps' installer/Containerfile
-          grep -Fq 'lorax-templates-generic' installer/Containerfile
           grep -Fq 'bootc-installer' installer/build-installer.sh
-          grep -Fq 'ghcr.io/krism-eu/krisos:ded161ca602b626d62214d8d78cb2ae60036bfaf' installer/build-installer.sh
+          grep -Fq 'localhost/krisos-iso-payload:20260918' installer/build-installer.sh
+          ! grep -Fq 'ded161ca602b626d62214d8d78cb2ae60036bfaf' installer/build-installer.sh
           ! grep -Fq 'bootc --source-imgref=' installer/Containerfile
 
-      - name: Install Podman
+      - name: Install build tooling
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y podman
+          sudo apt-get install -y podman rpm
           sudo podman version
+          rpm --version
+          gh --version
           df -h /
+
+      - name: Fetch exact krisCC 0.5 component
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/fetch-kriscc-component.sh
+          source build_files/krisCC.lock
+          test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
+          test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
+          test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
+          rpm -qp --qf '%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' build_files/krisCC/krisCC.rpm
+
+      - name: Build new KrisOS payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman build --pull=always             --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS'             --label "org.opencontainers.image.revision=${GITHUB_SHA}"             -t localhost/krisos-iso-payload:20260918             . 2>&1 | tee payload-build.log
+
+      - name: Validate krisCC and boot tooling inside payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo podman run --rm --entrypoint /bin/bash localhost/krisos-iso-payload:20260918 -lc '
+            set -euo pipefail
+            rpm -q krisCC
+            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}" krisCC)" = "0.5.0-1.fc44"
+            rpm -V krisCC
+            test -x /usr/bin/krisCC
+            test -x /usr/sbin/efibootmgr
+            test -x /usr/sbin/grubby
+            test -x /usr/sbin/grub2-reboot
+            rpm -qf /usr/sbin/efibootmgr
+            rpm -qf /usr/sbin/grubby
+            rpm -qf /usr/sbin/grub2-reboot
+            test -f /usr/share/polkit-1/actions/org.kriscc.controlcenter.policy
+            env QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic KRISCC_SMOKE_TEST=1 /usr/bin/krisCC --background
+          '
+
+      - name: Diagnose missing boot tooling
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          for path in /usr/sbin/efibootmgr /usr/sbin/grubby /usr/sbin/grub2-reboot; do
+            echo "=== provider for $path ==="
+            sudo podman run --rm --entrypoint /bin/bash localhost/krisos-iso-payload:20260918 -lc               "command -v dnf5 >/dev/null && dnf5 -q repoquery --whatprovides '$path' | head -n 20" || true
+          done
 
       - name: Build offline installer ISO
         shell: bash
+        env:
+          KRISOS_PAYLOAD_REF: localhost/krisos-iso-payload:20260918
         run: |
           set -euo pipefail
           bash installer/build-installer.sh 2>&1 | tee installer-build.log
@@ -65,20 +117,25 @@ jobs:
         run: |
           set -euo pipefail
           test -s installer/output/SHA256SUMS
-          find installer/output -type f -name '*.iso' -print -quit | grep -q .
+          iso="$(find installer/output -type f -name '*.iso' -print -quit)"
+          test -n "$iso"
+          test -s "$iso"
           (
             cd installer/output
             sha256sum --check SHA256SUMS
           )
+          printf 'ISO bytes: '
+          stat -c '%s' "$iso"
           find installer/output -maxdepth 3 -type f -printf '%s %p\n' | sort -n
           df -h /
 
-      - name: Upload ready ISO
+      - name: Upload complete ISO
         uses: actions/upload-artifact@v4
         with:
-          name: krisos-build68-offline-installer
+          name: krisos-complete-20260918
           path: |
             installer/output/**
+            payload-build.log
             installer-build.log
           if-no-files-found: error
           compression-level: 0
