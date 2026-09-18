@@ -14,25 +14,24 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
 installer_image="${KRISOS_INSTALLER_IMAGE:-localhost/krisos-installer-complete:f45}"
-payload_ref="${KRISOS_PAYLOAD_REF:-localhost/krisos-iso-payload:20260918}"
+payload_ref="${KRISOS_PAYLOAD_REF:?Set KRISOS_PAYLOAD_REF to the validated immutable KrisOS main payload}"
 image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder:latest}"
+
+if [[ "$payload_ref" == localhost/* ]]; then
+    echo "Complete ISO builds must use the published immutable KrisOS main payload, not a local rebuild." >&2
+    exit 1
+fi
 
 sudo rm -rf -- "$output_dir"
 mkdir -p "$output_dir"
 
-if [[ "$payload_ref" == localhost/* ]]; then
-    printf 'Using locally built KrisOS payload: %s\n' "$payload_ref"
-    if ! sudo podman image exists "$payload_ref"; then
-        echo "Local payload image not found: $payload_ref" >&2
-        exit 1
-    fi
-else
-    printf 'Pulling KrisOS payload: %s\n' "$payload_ref"
-    sudo podman pull "$payload_ref"
-fi
+printf 'Pulling validated KrisOS payload: %s\n' "$payload_ref"
+sudo podman pull "$payload_ref"
 
 printf 'Payload image ID: '
 sudo podman image inspect "$payload_ref" --format '{{.Id}}'
+printf 'Payload digest: '
+sudo podman image inspect "$payload_ref" --format '{{.Digest}}'
 
 printf 'Building Fedora 45 Anaconda bootc installer runtime...\n'
 sudo podman build \

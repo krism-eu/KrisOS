@@ -211,10 +211,10 @@ COPY build_files/55-krisos-hardening.conf /usr/lib/sysctl.d/55-krisos-hardening.
 
 # Install the separately built krisCC component artifact late in the image so
 # krisCC-only releases invalidate the smallest possible set of downstream layers.
-# The workflow places
-# the exact release RPM in the build context after verifying its SHA256SUMS.
-# rpm (not dnf) is deliberate here: every runtime dependency must already be
-# part of the declared image, so this step cannot resolve by replacing base RPMs.
+# The workflow places the exact release RPM in the build context after verifying
+# its SHA256SUMS. rpm (not dnf) is deliberate here: every runtime dependency must
+# already be part of the declared image, so this step cannot resolve by replacing
+# Fedora-owned RPMs.
 COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm
 RUN set -eux; \
     rpm -Uvh /tmp/krisCC.rpm; \
