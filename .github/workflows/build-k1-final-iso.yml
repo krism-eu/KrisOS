@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y podman xorriso
+          sudo apt-get install -y podman skopeo xorriso
           sudo podman version
 
       - name: Verify fixed main backup payload
@@ -190,9 +190,11 @@ jobs:
           authfile="$(mktemp)"
           trap 'rm -f "$authfile"' EXIT
           printf '{"auths":{}}\n' > "$authfile"
-          sudo podman pull --authfile "$authfile" --digestfile anonymous-pull.digest "$CANDIDATE_REF"
-          test -s anonymous-pull.digest
-          test "$(cat anonymous-pull.digest)" = "$CANDIDATE_DIGEST"
+          skopeo inspect --raw --authfile "$authfile" "docker://$CANDIDATE_REF" > anonymous-manifest.json
+          test -s anonymous-manifest.json
+          remote_digest="sha256:$(sha256sum anonymous-manifest.json | awk '{print $1}')"
+          test "$remote_digest" = "$CANDIDATE_DIGEST"
+          printf '%s\n' "$remote_digest" > anonymous-pull.digest
 
       - name: Build offline Anaconda ISO from candidate payload
         shell: bash
@@ -278,6 +280,7 @@ jobs:
             candidate-publish.log
             candidate-cosign-verify.log
             anonymous-pull.digest
+            anonymous-manifest.json
             installer-build.log
             iso-pvd.txt
             final-iso.sha256
