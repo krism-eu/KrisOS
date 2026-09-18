@@ -70,7 +70,7 @@ run_check "SELinux data context below /var/home" bash -c "matchpathcon -n /var/h
 
 kernel_image="/usr/lib/modules/$(uname -r)/initramfs.img"
 run_check "canonical initramfs present" test -s "$kernel_image"
-run_check "AMD early microcode embedded" bash -c "lsinitrd '$kernel_image' | grep -Fq 'kernel/x86/microcode/AuthenticAMD.bin'"
+run_check "AMD early microcode embedded" bash -c "lsinitrd '$kernel_image' | grep -F 'kernel/x86/microcode/AuthenticAMD.bin' >/dev/null"
 
 expected_admin_user="${KRISOS_EXPECT_ADMIN_USER:-}"
 if [[ -n "$expected_admin_user" ]]; then
