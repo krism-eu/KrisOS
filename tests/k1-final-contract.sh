@@ -23,6 +23,19 @@ test "$KRISCC_RPM" = "krisCC-0.5.1-8.fc44.x86_64.rpm"
 test "$KRISCC_SHA256" = "673f5f16c34a5c80ba0bd713e40c8c84be2baf6d0cdb8f877fcc8a8b700dedf1"
 test "$KRISCC_COMMIT" = "32d202a79e05453e181f93f2e834c136b1481ff8"
 
+# rk must honor the repositories explicitly enabled by the administrator while
+# retaining mandatory package signature verification. Never re-enable Fedora
+# repositories behind the UI's back.
+! grep -Fq "repo.get_config().enabled = repo.get_id() in ('fedora', 'updates')" bin/rk
+grep -Fq 'config.pkg_gpgcheck = True' bin/rk
+grep -Fq 'config.localpkg_gpgcheck = True' bin/rk
+grep -Fq 'config.pkg_gpgcheck = True' bin/rk
+grep -Fq 'tx.check_gpg_signatures()' bin/rk
+grep -Fq 'fd = acquire_plan_lock()' bin/rk
+grep -Fq "fd = os.open(STATE / 'lock', os.O_RDONLY)" bin/rk
+grep -Fq 'LOCK_SH | fcntl.LOCK_NB' bin/rk
+grep -Fq 'f /var/lib/krisos/lock 0644 root root -' build_files/tmpfiles-krisos.conf
+
 # AMD microcode must be rebuilt into the canonical bootc initramfs.
 grep -Fq 'dracut --force --no-hostonly --early-microcode --reproducible --zstd' Containerfile
 grep -Fq "kernel/x86/microcode/AuthenticAMD.bin" Containerfile
