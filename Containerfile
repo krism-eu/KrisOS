@@ -316,6 +316,8 @@ RUN set -eux; \
     test -x /usr/bin/okular; \
     test -x /usr/bin/kcalc; \
     test -x /usr/bin/kinfocenter; \
+    test -x /usr/bin/kfind; \
+    test -x /usr/bin/qdirstat; \
     test -x /usr/bin/powerprofilesctl; \
     test -x /usr/bin/os-prober; \
     test -x /usr/bin/ntfsresize; \

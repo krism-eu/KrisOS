@@ -59,6 +59,8 @@ kinfocenter
 ksystemlog
 plasma-systemmonitor
 kde-partitionmanager
+kfind
+qdirstat
 
 # Network firewall. Fedora 44's plasma-firewall package currently pulls both
 # backend plugins; KrisOS deliberately enables firewalld only. firewalld
