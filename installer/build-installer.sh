@@ -13,15 +13,24 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_dir="$repo_root/installer/output"
-installer_image="localhost/krisos-installer-build68:f45"
-payload_ref="${KRISOS_PAYLOAD_REF:-ghcr.io/krism-eu/krisos:ded161ca602b626d62214d8d78cb2ae60036bfaf}"
+installer_image="${KRISOS_INSTALLER_IMAGE:-localhost/krisos-installer-complete:f45}"
+payload_ref="${KRISOS_PAYLOAD_REF:-localhost/krisos-iso-payload:20260918}"
 image_builder_image="${IMAGE_BUILDER_IMAGE:-ghcr.io/osbuild/image-builder-cli:latest}"
 
 sudo rm -rf -- "$output_dir"
 mkdir -p "$output_dir"
 
-printf 'Pulling exact KrisOS Build #68 payload...\n'
-sudo podman pull "$payload_ref"
+if [[ "$payload_ref" == localhost/* ]]; then
+    printf 'Using locally built KrisOS payload: %s\n' "$payload_ref"
+    if ! sudo podman image exists "$payload_ref"; then
+        echo "Local payload image not found: $payload_ref" >&2
+        exit 1
+    fi
+else
+    printf 'Pulling KrisOS payload: %s\n' "$payload_ref"
+    sudo podman pull "$payload_ref"
+fi
+
 printf 'Payload image ID: '
 sudo podman image inspect "$payload_ref" --format '{{.Id}}'
 
@@ -37,7 +46,7 @@ sudo podman pull "$image_builder_image"
 printf 'Image Builder digest: '
 sudo podman image inspect "$image_builder_image" --format '{{.Digest}}'
 
-printf 'Building bootc-installer ISO with embedded KrisOS Build #68...\n'
+printf 'Building bootc-installer ISO with embedded payload %s...\n' "$payload_ref"
 sudo podman run \
     --rm \
     --privileged \
