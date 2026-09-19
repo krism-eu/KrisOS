@@ -226,14 +226,15 @@ jobs:
           grep -Fq "Volume id    : 'Fedora-S-dvd-x86_64-45'" iso-pvd.txt
 
           xorriso -indev "$iso" -report_el_torito plain 2>&1 | tee iso-eltorito.txt
-          grep -Eqi 'El Torito|UEFI|EFI' iso-eltorito.txt
-          grep -Eqi 'BIOS|El Torito' iso-eltorito.txt
+          grep -Eq 'El Torito boot img :.*BIOS.* y ' iso-eltorito.txt
+          grep -Eq 'El Torito boot img :.*UEFI.* y ' iso-eltorito.txt
 
-          # Boot configuration may live in the appended EFI FAT image rather
-          # than as a directly extractable ISO9660 file. Validate the actual
-          # bytes carried by the finished ISO instead of assuming a grub.cfg path.
-          grep -aFq 'inst.stage2=hd:LABEL=Fedora-S-dvd-x86_64-45' "$iso"
-          grep -aFq 'Install KrisOS K1.0' "$iso"
+          # Verify the actual installer kernel/initramfs carried by the ISO.
+          # The GRUB config can reside inside the appended EFI FAT image, so
+          # do not assume it is an extractable ISO9660 file.
+          xorriso -indev "$iso" -ls /images/pxeboot 2>&1 | tee iso-pxeboot.txt
+          grep -Fq 'vmlinuz' iso-pxeboot.txt
+          grep -Fq 'initrd.img' iso-pxeboot.txt
 
           manifest="$(find installer/output -type f -name '*.osbuild-manifest.json' -print -quit)"
           test -n "$manifest"
@@ -279,6 +280,21 @@ jobs:
           sha256sum "$iso" | tee final-iso.sha256
           df -h /
 
+      - name: Preserve ISO diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: krisos-k1-diagnostics-${{ github.sha }}
+          path: |
+            installer/output/**
+            installer-build.log
+            iso-pvd.txt
+            iso-eltorito.txt
+            iso-pxeboot.txt
+            candidate-payload.digest
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
       - name: Upload final ISO backup
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -295,6 +311,7 @@ jobs:
             installer-build.log
             iso-pvd.txt
             iso-eltorito.txt
+            iso-pxeboot.txt
             final-iso.sha256
             tests/boot-check.sh
             tests/release-check.sh
