@@ -58,6 +58,9 @@ if [[ -n "$expected_image" ]]; then
     fi
 fi
 
+run_check "SELinux enforcing" bash -c 'getenforce | grep -qx Enforcing'
+run_check "kernel cmdline keeps SELinux enabled" bash -c '! grep -Eq "(^|[[:space:]])(selinux=0|enforcing=0)([[:space:]]|$)" /proc/cmdline'
+
 run_check "krisCC installed" rpm -q krisCC
 run_check "krisCC files verify" rpm -V --nomtime krisCC
 run_check "krisCC executable" test -x /usr/bin/krisCC
