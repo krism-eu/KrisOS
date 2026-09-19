@@ -49,9 +49,29 @@ grep -Fq "matchpathcon -n /var/home/kris" Containerfile
 ! grep -RniE 'semanage[[:space:]]+fcontext.*(-e|/var/home)|semanage[[:space:]]+permissive' Containerfile build_files systemd
 
 # Installer storage/user setup stays interactive and non-destructive.
-grep -Fxq 'graphical' installer/Containerfile < /dev/null || true
-! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw)([[:space:]]|$)' installer/Containerfile
-! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw)([[:space:]]|$)' kickstart/krisos.ks
+grep -Fq 'bootc-generic-iso' installer/build-installer.sh
+if grep -Eq '^[[:space:]]*bootc-installer[[:space:]]*
+grep -Fq '/var/home' installer/README.md
+grep -Fq 'administrator' installer/README.md
+grep -Fq 'No swap partition' installer/README.md
+
+# Runtime QA must ignore only RPM mtime drift, not content/ownership/mode drift.
+grep -Fq 'rpm -V --nomtime krisCC' tests/release-check.sh
+grep -Fq 'AMD early microcode embedded' tests/release-check.sh
+grep -Fq 'expected admin user is in wheel' tests/release-check.sh
+
+echo "K1 final static contract passed"
+ installer/build-installer.sh; then
+  echo "ERROR: historical bootc-installer image type is forbidden" >&2
+  exit 1
+fi
+grep -Fq -- '--bootc-installer-payload-ref "$payload_ref"' installer/build-installer.sh
+grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-installer.sh
+grep -Fq 'ARG KRISOS_PAYLOAD_REF' installer/Containerfile
+grep -Fq 'graphical' installer/Containerfile
+grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
+! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile
+! grep -Eq 'inst\.(ks|cmdline|noninteractive)' installer/iso.yaml
 grep -Fq '/boot/efi' installer/README.md
 grep -Fq '/var/home' installer/README.md
 grep -Fq 'administrator' installer/README.md
