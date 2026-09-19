@@ -71,6 +71,11 @@ jobs:
             echo "ERROR: ISO kernel arguments enable unattended installation" >&2
             exit 1
           fi
+          grep -Fq 'selinux=1 enforcing=1' installer/iso.yaml
+          if grep -Eq '(^|[[:space:]])(selinux=0|enforcing=0)([[:space:]]|$)' installer/iso.yaml; then
+            echo "ERROR: ISO kernel arguments disable SELinux" >&2
+            exit 1
+          fi
           test ! -e kickstart/krisos.ks
 
       - name: Verify stable krisCC component lock
