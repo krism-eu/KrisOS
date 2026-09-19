@@ -80,6 +80,11 @@ if grep -Eq 'inst\.(ks|cmdline|noninteractive)' installer/iso.yaml; then
   echo "ERROR: ISO boot arguments enable unattended installation" >&2
   exit 1
 fi
+grep -Fq 'selinux=1 enforcing=1' installer/iso.yaml
+if grep -Eq '(^|[[:space:]])(selinux=0|enforcing=0)([[:space:]]|$)' installer/iso.yaml; then
+  echo "ERROR: installer must never disable SELinux" >&2
+  exit 1
+fi
 test ! -e kickstart/krisos.ks
 grep -Fq '/boot/efi' installer/README.md
 grep -Fq '/var/home' installer/README.md
