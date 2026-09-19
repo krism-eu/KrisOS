@@ -2,7 +2,7 @@
 
 KrisOS uses a deliberately small end-to-end release check instead of reproducing a full openQA installation.
 
-The normal release path remains the bootc image from `main`. During final K1.0 physical QA, the branch `k1.0-final-restyle-fixes` builds a separate immutable candidate payload containing the validated krisCC restyle and physical-machine fixes. The stable `main` payload and krisCC 0.5.1-7 remain pinned as the rollback/backup baseline until the candidate passes physical installation QA.
+The normal release path remains the bootc image from `main`. The validated K1 runtime fixes and krisCC 0.5.1-10 are now present on `main`; the installer branch remains separate only for Anaconda/ISO work. The fixed rollback/backup baseline is the signed immutable main commit `35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`, not the mutable `m1` tag.
 
 ## Runtime check
 
@@ -53,4 +53,4 @@ Create the desktop account interactively, enable Anaconda's administrator option
 
 After installation, run the bundled `release-check.sh` with the candidate image reference, krisCC EVRA and admin user exported. Then run the reboot sentinel test. Physical QA additionally confirms Plasma login, KWallet behavior, networking, audio/GPU, suspend/resume, rk add/remove/sync/recovery, the krisCC GUI pages, and a recovery boot with `krisos.overlay=off`.
 
-Only after this physical ISO install passes should the same candidate changes be promoted to `main`; at that point the stable backup baseline may be advanced separately.
+The runtime changes are already promoted to `main`. Physical ISO validation now decides only whether the installer branch is ready to be closed/promoted; it does not gate the direct bootc runtime already published from `main`.
