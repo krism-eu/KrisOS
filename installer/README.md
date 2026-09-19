@@ -93,6 +93,8 @@ not select the historical `bootc-installer` image type.
 
 ## Security note
 
-The live installer entry currently uses `selinux=0`, matching the upstream minimal `bootc-generic-iso` Anaconda example. This affects only the disposable installer runtime, not the installed KrisOS system, whose SELinux policy remains enforcing. We can remove this boot argument later if Fedora 45 testing proves the generic installer path works correctly with SELinux enabled.
+SELinux enforcing is part of the installer contract as well as the installed-system contract. The ISO boot entry explicitly uses `selinux=1 enforcing=1`; `selinux=0` and `enforcing=0` are forbidden. Physical K1.0 validation showed that treating `selinux=0` as disposable live-installer state was unsafe for this bootc-generic-iso path.
+
+The embedded KrisOS payload also carries `SELINUX=enforcing` in `/etc/selinux/config`. Post-install validation must confirm both `getenforce == Enforcing` and that the installed kernel command line contains neither `selinux=0` nor `enforcing=0`.
 
 `SHA256SUMS` detects corruption or accidental changes to a downloaded installer artifact. It is not a replacement for a future signed-release policy such as Cosign.
