@@ -47,6 +47,7 @@ build_ok=0
 for attempt in 1 2 3; do
     if sudo podman build \
         --pull=always \
+        --build-arg KRISOS_PAYLOAD_REF="$payload_ref" \
         -f "$repo_root/installer/Containerfile" \
         -t "$installer_image" \
         "$repo_root/installer"; then
@@ -85,7 +86,7 @@ sudo podman run \
     --bootc-ref "$installer_image" \
     --bootc-installer-payload-ref "$payload_ref" \
     --bootc-default-fs ext4 \
-    bootc-installer
+    bootc-generic-iso
 
 sudo chown -R "$(id -u):$(id -g)" "$output_dir"
 
