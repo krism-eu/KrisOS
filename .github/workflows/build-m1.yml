@@ -11,6 +11,11 @@ on:
         description: "Optional explicit bootc base image for compatibility testing"
         required: false
         type: string
+      publish:
+        description: "Publish a validated default-base main build (component promotion)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +49,9 @@ jobs:
           bash -n scripts/fetch-kriscc-component.sh
           python3 -m py_compile bin/rk
           python3 tests/test_rk.py
+          python3 tests/test_rk_recovery.py
+          python3 tests/test_release_state.py
+          python3 tests/test_release_shell.py
           python3 tests/test_overlay_recovery.py
           python3 tests/test_overlay_identity.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
@@ -67,6 +75,10 @@ jobs:
           grep -Fxq 'ARG RELEASE=0.1.0-m1' Containerfile
           grep -Fq 'rpm -q krisCC' Containerfile
           grep -Fq 'grep -Fxq krisCC /usr/share/krisos/owned-packages.txt' Containerfile
+          grep -Fq 'HOME=/var/home' Containerfile
+          grep -Fq 'semodule -B' Containerfile
+          grep -Fq 'dracut --force --no-hostonly --early-microcode --reproducible --zstd' Containerfile
+          grep -Fq 'AuthenticAMD.bin' Containerfile
           grep -Fq 'COPY systemd/krisos-sync.timer /usr/lib/systemd/system/krisos-sync.timer' Containerfile
           grep -Fq 'systemctl enable krisos-sync.timer' Containerfile
           ! grep -Fq 'systemctl enable krisos-sync.service' Containerfile
@@ -94,9 +106,6 @@ jobs:
           grep -Fq 'WantedBy=timers.target' systemd/krisos-sync.timer
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
-          grep -Fxq 'graphical' kickstart/krisos.ks
-          grep -Fxq 'bootc --source-imgref=registry:ghcr.io/krism-eu/krisos:m1 --target-imgref=ghcr.io/krism-eu/krisos:m1' kickstart/krisos.ks
-          ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup)([[:space:]]|$)' kickstart/krisos.ks
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
 
@@ -118,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y podman
+          sudo apt-get install -y podman skopeo
           sudo podman version
 
       - name: Build bootc image
@@ -157,6 +166,9 @@ jobs:
             rpm -q krisCC &&
             rpm -V krisCC &&
             test -x /usr/bin/krisCC &&
+            grep -Fxq "HOME=/var/home" /etc/default/useradd &&
+            matchpathcon -n /var/home/kris | grep -q ":user_home_dir_t:" &&
+            test -s "/usr/lib/modules/$(ls /usr/lib/modules | head -n1)/initramfs.img" &&
             systemctl is-enabled krisos-sync.timer | grep -qx enabled &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
@@ -176,13 +188,13 @@ jobs:
             2>&1 | tee rk-integration.log
 
       - name: Install Cosign
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: 'v3.0.6'
 
       - name: Login to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         env:
           GHCR_USER: ${{ github.actor }}
@@ -195,7 +207,7 @@ jobs:
             ghcr.io --username "$GHCR_USER" --password-stdin
 
       - name: Publish immutable image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -210,7 +222,7 @@ jobs:
           printf 'Published immutable digest: %s\n' "$(cat publish.digest)"
 
       - name: Sign and verify immutable digest
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -223,7 +235,7 @@ jobs:
             "$image" 2>&1 | tee cosign-verify.log
 
       - name: Publish mutable M1 tag
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -234,7 +246,7 @@ jobs:
             "$mutable" 2>&1 | tee publish-m1.log
 
       - name: Verify anonymous GHCR pull
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -247,13 +259,12 @@ jobs:
           trap 'rm -f "$authfile"' EXIT
           printf '{"auths":{}}\n' > "$authfile"
 
-          sudo podman pull --authfile "$authfile" "$immutable" 2>&1 | tee anonymous-pull-immutable.log
-          immutable_digest="$(sudo podman inspect "$immutable" --format '{{.Digest}}')"
+          skopeo inspect --raw --authfile "$authfile" "docker://$immutable" > anonymous-immutable-manifest.json
+          immutable_digest="sha256:$(sha256sum anonymous-immutable-manifest.json | awk '{print $1}')"
           test "$immutable_digest" = "$expected"
 
-          sudo podman rmi -f "$immutable"
-          sudo podman pull --authfile "$authfile" "$mutable" 2>&1 | tee anonymous-pull-m1.log
-          mutable_digest="$(sudo podman inspect "$mutable" --format '{{.Digest}}')"
+          skopeo inspect --raw --authfile "$authfile" "docker://$mutable" > anonymous-m1-manifest.json
+          mutable_digest="sha256:$(sha256sum anonymous-m1-manifest.json | awk '{print $1}')"
           test "$mutable_digest" = "$expected"
 
       - name: Preserve complete logs
@@ -270,4 +281,6 @@ jobs:
             publish-m1.log
             anonymous-pull-immutable.log
             anonymous-pull-m1.log
+            anonymous-immutable-manifest.json
+            anonymous-m1-manifest.json
           if-no-files-found: ignore

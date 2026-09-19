@@ -4,9 +4,9 @@ set -euo pipefail
 # Stable backup baseline: exact validated main payload after K1 runtime promotion.
 # shellcheck source=/dev/null
 source build_files/KrisOS-payload.lock
-test "$KRISOS_COMMIT" = "b40417ff49af48d9c693f49e553a0bef3cceb59b"
-test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:b40417ff49af48d9c693f49e553a0bef3cceb59b"
-test "$KRISOS_DIGEST" = "sha256:9218df60225d4d6d415c4bcc21de530bd2bd65b97d9045374050ac7addd01579"
+test "$KRISOS_COMMIT" = "ccb73fe74faf92d7102fcb24c3526b791ff83590"
+test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:ccb73fe74faf92d7102fcb24c3526b791ff83590"
+test "$KRISOS_DIGEST" = "sha256:3419f8d0834cb7f3b99d09444f7e3666a670477d94ae1aebdcad1b59963d2275"
 
 # Stable krisCC component is main's validated 0.6.0-1.
 # shellcheck source=/dev/null

@@ -14,34 +14,21 @@ This directory contains the minimal installer path for KrisOS.
 
 ## Build
 
-The local installer build requires only `podman`. Image Builder itself runs from the official container image so local and GitHub Actions builds use the same path.
+The supported offline build is `.github/workflows/build-k1-final-iso.yml` on
+`k1.0-final-restyle-fixes`. It verifies the payload digest and Cosign identity,
+pulls by digest, assigns the locked target reference locally, and builds the ISO.
+The older build-installer.yml entry is retired.
 
-Build the generic installer ISO with:
+For a local build, first reproduce that workflow's signature/digest verification
+and rootful Podman payload import. Then export `KRISOS_PAYLOAD_REF` to the locked
+published target and `KRISOS_PAYLOAD_IMAGE_ID` to the verified local image ID before
+running `bash installer/build-installer.sh` as a normal user with sudo access.
+The script refuses a missing or mismatched local payload. It requires Podman and
+uses Image Builder pinned by digest in the script; any IMAGE_BUILDER_IMAGE override
+must also be a digest reference. No `latest` default or tag-only override is used.
 
-```text
-bash installer/build-installer.sh
-```
-
-The script:
-
-1. builds the Fedora 45 installer runtime;
-2. runs the containerized Image Builder;
-3. creates a `bootc-generic-iso` below `installer/output/`;
-4. writes `installer/output/SHA256SUMS` for every generated artifact.
-
-By default the builder image is `ghcr.io/osbuild/image-builder-cli:latest`. It can be overridden explicitly for compatibility testing or pinning:
-
-```text
-IMAGE_BUILDER_IMAGE=ghcr.io/osbuild/image-builder-cli:TAG bash installer/build-installer.sh
-```
-
-The build pins the exact validated KrisOS payload reference into Anaconda's interactive defaults and embeds that same container in the ISO. This avoids a network dependency during installation while keeping partitioning and user creation manual.
-
-## GitHub generation
-
-Installer-related pull requests run the `Build Installer ISO` workflow automatically for pre-merge validation. On `main`, the same workflow can be launched manually with `workflow_dispatch`. In both cases it invokes the same `installer/build-installer.sh` used locally; successful runs verify and upload the generated ISO plus `SHA256SUMS` as a GitHub Actions artifact.
-
-This workflow generates installer media only. It does not publish or replace the KrisOS bootc payload image.
+The payload is embedded for offline installation. Partitioning and user creation
+remain interactive. Artifacts and SHA256SUMS are written under installer/output/.
 
 ## Installation layout
 

@@ -44,6 +44,9 @@ jobs:
           bash tests/k1-final-contract.sh
           python3 -m py_compile bin/rk
           python3 tests/test_rk.py
+          python3 tests/test_rk_recovery.py
+          python3 tests/test_release_state.py
+          python3 tests/test_release_shell.py
           python3 tests/test_overlay_recovery.py
           python3 tests/test_overlay_identity.py
 
@@ -123,7 +126,11 @@ jobs:
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             "ghcr.io/krism-eu/krisos@$KRISOS_DIGEST" 2>&1 | tee main-cosign-verify.log
 
-          sudo podman pull --authfile "$authfile" "$KRISOS_TARGET_REF"
+          digest_ref="ghcr.io/krism-eu/krisos@$KRISOS_DIGEST"
+          sudo podman pull --authfile "$authfile" "$digest_ref"
+          # Pull by the verified registry digest; retain that exact local image
+          # under the published target name expected by the offline installer.
+          sudo podman tag "$digest_ref" "$KRISOS_TARGET_REF"
           test "$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$KRISOS_COMMIT"
           image_id="$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{.Id}}')"
 
@@ -335,6 +342,7 @@ jobs:
             final-iso.sha256
             tests/boot-check.sh
             tests/release-check.sh
+            tests/release-state.py
             tests/k1-final-contract.sh
             installer/README.md
           if-no-files-found: error

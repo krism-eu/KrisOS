@@ -51,10 +51,10 @@ else
 fi
 
 if [[ -n "$expected_image" ]]; then
-    if grep -Fq -- "$expected_image" "$status_file"; then
-        pass "expected bootc image is present in status"
+    if python3 "$script_dir/release-state.py" image "$status_file" "$expected_image"; then
+        pass "expected image is the booted deployment"
     else
-        fail_check "expected bootc image is present in status"
+        fail_check "expected image is the booted deployment"
     fi
 fi
 
@@ -81,7 +81,7 @@ if [[ -n "$expected_admin_user" ]]; then
     run_check "expected admin user is in wheel" bash -c "id -nG '$expected_admin_user' | tr ' ' '\n' | grep -qx wheel"
     admin_home="$(getent passwd "$expected_admin_user" | cut -d: -f6)"
     if [[ -n "$admin_home" ]]; then
-        run_check "admin home resolves below /var/home" bash -c "test \"$(readlink -f '$admin_home')\" = '/var/home/$expected_admin_user'"
+        run_check "admin home resolves below /var/home" bash -c 'test "$(readlink -f -- "$1")" = "$2"' _ "$admin_home" "/var/home/$expected_admin_user"
         run_check "admin home SELinux label" bash -c "ls -Zd '/var/home/$expected_admin_user' | grep -q ':user_home_dir_t:'"
     fi
 fi
@@ -106,11 +106,11 @@ fi
 run_check "krisos-sync timer enabled" bash -c 'systemctl is-enabled krisos-sync.timer | grep -qx enabled'
 run_check "krisos-sync timer active" bash -c 'systemctl is-active krisos-sync.timer | grep -qx active'
 
-if /usr/bin/rk status >"$rk_file" 2>&1; then
-    pass "rk status"
+if /usr/bin/rk status >"$rk_file" 2>&1 && python3 "$script_dir/release-state.py" rk "$rk_file"; then
+    pass "rk overlay ready and recovery complete"
 else
     cat "$rk_file" >&2 || true
-    fail_check "rk status"
+    fail_check "rk overlay ready and recovery complete"
 fi
 
 run_check "krisCC offscreen smoke" timeout 20s env     QT_QPA_PLATFORM=offscreen     QT_QUICK_BACKEND=software     QT_QUICK_CONTROLS_STYLE=Basic     KRISCC_SMOKE_TEST=1     /usr/bin/krisCC --background

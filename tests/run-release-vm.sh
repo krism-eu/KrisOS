@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="${KRISOS_E2E_TARGET:?Set KRISOS_E2E_TARGET, for example qa@192.0.2.10}"
 expected_kriscc="${KRISOS_EXPECT_KRISCC:-}"
 expected_image="${KRISOS_EXPECT_IMAGE:-}"
+expected_admin_user="${KRISOS_EXPECT_ADMIN_USER:-}"
 switch_image="${KRISOS_E2E_SWITCH_IMAGE:-}"
 token="${KRISOS_E2E_TOKEN:-krisos-e2e-$(date +%s)-$$}"
 remote_dir="/tmp/krisos-release-e2e"
@@ -20,19 +21,20 @@ validate_simple() {
     fi
 }
 
+validate_simple "KRISOS_EXPECT_ADMIN_USER" "$expected_admin_user" '^[A-Za-z_][A-Za-z0-9_.-]*[$]?$'
 validate_simple "KRISOS_EXPECT_KRISCC" "$expected_kriscc" '^[A-Za-z0-9._+:-]+$'
 validate_simple "KRISOS_EXPECT_IMAGE" "$expected_image" '^[A-Za-z0-9._/@:+-]+$'
 validate_simple "KRISOS_E2E_SWITCH_IMAGE" "$switch_image" '^[A-Za-z0-9._/@:+-]+$'
 validate_simple "KRISOS_E2E_TOKEN" "$token" '^[A-Za-z0-9._-]+$'
 
 upload_checks() {
-    tar -C "$repo_root/tests" -cf - boot-check.sh release-check.sh |
+    tar -C "$repo_root/tests" -cf - boot-check.sh release-check.sh release-state.py |
         ssh "${ssh_opts[@]}" "$target"             "rm -rf '$remote_dir' && mkdir -p '$remote_dir' && tar -C '$remote_dir' -xf - && chmod 0755 '$remote_dir/'*.sh"
 }
 
 run_release_check() {
     local mode="$1"
-    ssh "${ssh_opts[@]}" "$target"         "sudo env KRISOS_EXPECT_KRISCC='$expected_kriscc' KRISOS_EXPECT_IMAGE='$expected_image' KRISOS_E2E_TOKEN='$token' '$remote_dir/release-check.sh' '$mode'"
+    ssh "${ssh_opts[@]}" "$target"         "sudo env KRISOS_EXPECT_KRISCC='$expected_kriscc' KRISOS_EXPECT_IMAGE='$expected_image' KRISOS_E2E_TOKEN='$token' KRISOS_EXPECT_ADMIN_USER='$expected_admin_user' '$remote_dir/release-check.sh' '$mode'"
 }
 
 wait_for_new_boot() {
