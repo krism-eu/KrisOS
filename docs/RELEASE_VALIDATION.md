@@ -14,7 +14,10 @@ The normal release path is the bootc image from `main`. The ISO is a secondary i
 - the expected krisCC EVRA is present when `KRISOS_EXPECT_KRISCC` is set;
 - `krisos-sync.timer` is enabled and active;
 - `rk status` succeeds;
-- krisCC passes the same offscreen runtime smoke used by CI.
+- krisCC passes the same offscreen runtime smoke used by CI;
+- the image-level useradd default is `HOME=/var/home` and SELinux resolves user/config/data paths below `/var/home`;
+- the canonical initramfs contains AMD early microcode (`AuthenticAMD.bin`);
+- optional admin-user checks run only when `KRISOS_EXPECT_ADMIN_USER` is explicitly set.
 
 The `prepare-reboot` and `verify-reboot` modes write a temporary sentinel through the live `/usr` overlay, reboot, verify that the same-deployment overlay persisted, and remove the sentinel.
 
@@ -28,7 +31,7 @@ Example:
 export KRISOS_E2E_TARGET=qa@192.0.2.10
 export KRISOS_E2E_SWITCH_IMAGE=ghcr.io/krism-eu/krisos:<immutable-commit>
 export KRISOS_EXPECT_IMAGE="$KRISOS_E2E_SWITCH_IMAGE"
-export KRISOS_EXPECT_KRISCC=0.5.1-7.fc44.x86_64
+export KRISOS_EXPECT_KRISCC=0.5.1-10.fc44.x86_64
 tests/run-release-vm.sh
 ```
 
@@ -37,3 +40,12 @@ The VM must be disposable and the SSH user must have non-interactive sudo. The h
 ## ISO coherence
 
 The installer ISO should embed the exact immutable payload already validated from `main`, rather than rebuilding a second payload from installer-branch sources. After an ISO installation, run the same `release-check.sh`; this keeps the update and installation paths comparable without maintaining two separate QA systems.
+
+
+## Direct bootc main path
+
+`main` remains the primary KrisOS delivery path and publishes the signed bootc image directly to GHCR. It does not create users, repartition disks, or run Anaconda. Existing accounts and storage layout are preserved across bootc updates.
+
+The `/var/home` useradd default and SELinux homedir policy are image defaults for future user creation and installer consistency; they do not rewrite an existing account's passwd entry during an update.
+
+Installer-specific Anaconda, partitioning and ISO build logic stays on the installer branch. Once a main payload is validated and published, installer validation should embed that exact immutable main payload rather than rebuilding a second OS payload.
