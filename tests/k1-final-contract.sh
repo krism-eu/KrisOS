@@ -18,10 +18,10 @@ test "$KRISCC_SHA256" = "ac7fe241599190c49aaf62338f41142b6025a64c3f073fc23e03a98
 # Candidate restyle is separately pinned and immutable.
 # shellcheck source=/dev/null
 source build_files/krisCC-candidate.lock
-test "$KRISCC_TAG" = "v0.5.1-9"
-test "$KRISCC_RPM" = "krisCC-0.5.1-9.fc44.x86_64.rpm"
-test "$KRISCC_SHA256" = "8439dec82667228bed5a39244cf38bc92b139f53fd7b051b46eabcaa73d95391"
-test "$KRISCC_COMMIT" = "9deff25fd1e225a72a306ed0a818f043d8ba31e9"
+test "$KRISCC_TAG" = "v0.5.1-10"
+test "$KRISCC_RPM" = "krisCC-0.5.1-10.fc44.x86_64.rpm"
+test "$KRISCC_SHA256" = "80bd3dc6a488688ed80ca7bb0462837a8fcafe8a1c2dc4849aa0e6bf62de941f"
+test "$KRISCC_COMMIT" = "000ef6d57c5fb91fc14d5fa1bd895c93f9e70c07"
 
 # rk must honor the repositories explicitly enabled by the administrator while
 # retaining mandatory package signature verification. Never re-enable Fedora
