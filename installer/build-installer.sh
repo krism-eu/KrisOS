@@ -72,7 +72,7 @@ if [[ "$builder_actual" != "$builder_expected" ]]; then
 fi
 printf 'Image Builder digest: %s\n' "$builder_actual"
 
-printf 'Building bootc-installer ISO with embedded payload %s...\n' "$payload_ref"
+printf 'Building interactive bootc-generic-iso with embedded payload %s...\n' "$payload_ref"
 sudo podman run \
     --rm \
     --privileged \
