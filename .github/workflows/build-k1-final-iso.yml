@@ -200,7 +200,7 @@ jobs:
             kernel="$(kernel-install list --json pretty | jq -r ".[] | select(.has_kernel == true) | .version" | head -n1)"
             test -n "$kernel"
             test -s "/usr/lib/modules/$kernel/initramfs.img"
-            lsinitrd "/usr/lib/modules/$kernel/initramfs.img" | grep -E 'anaconda|anaconda-lib' >/dev/null
+            lsinitrd "/usr/lib/modules/$kernel/initramfs.img" | grep -E "anaconda|anaconda-lib" >/dev/null
           '
 
       - name: Build offline Anaconda ISO from exact main payload
