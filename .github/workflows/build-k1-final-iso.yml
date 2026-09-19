@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
 
 concurrency:
   group: k1-final-${{ github.ref }}
@@ -16,12 +14,12 @@ concurrency:
 
 jobs:
   build-final-iso:
-    name: Restyle + physical-QA fixes + offline ISO
+    name: Main payload + offline Anaconda ISO
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 120
 
     steps:
-      - name: Checkout candidate branch
+      - name: Checkout installer branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
@@ -49,7 +47,6 @@ jobs:
           python3 tests/test_overlay_recovery.py
           python3 tests/test_overlay_identity.py
 
-          grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           grep -Fq 'FROM quay.io/fedora/fedora-bootc:45' installer/Containerfile
           grep -Fq 'anaconda-install-env-deps' installer/Containerfile
           grep -Fq 'label: "Fedora-S-dvd-x86_64-45"' installer/iso.yaml
@@ -57,14 +54,12 @@ jobs:
           grep -Fq 'bootc-installer' installer/build-installer.sh
           grep -Fq -- '--bootc-default-fs ext4' installer/build-installer.sh
 
-      - name: Fetch verified krisCC restyle candidate
+      - name: Verify stable krisCC component lock
         shell: bash
-        env:
-          KRISCC_LOCK_FILE: build_files/krisCC-candidate.lock
         run: |
           set -euo pipefail
           bash scripts/fetch-kriscc-component.sh
-          source build_files/krisCC-candidate.lock
+          source build_files/krisCC.lock
           test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
           test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
           test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
@@ -78,7 +73,13 @@ jobs:
           sudo apt-get install -y podman skopeo xorriso
           sudo podman version
 
-      - name: Verify fixed main backup payload
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.0.6'
+
+      - name: Verify and pull signed main payload
+        id: main_payload
         shell: bash
         run: |
           set -euo pipefail
@@ -86,31 +87,22 @@ jobs:
           authfile="$(mktemp)"
           trap 'rm -f "$authfile"' EXIT
           printf '{"auths":{}}\n' > "$authfile"
+
+          skopeo inspect --raw --authfile "$authfile" "docker://$KRISOS_TARGET_REF" > main-manifest.json
+          remote_digest="sha256:$(sha256sum main-manifest.json | awk '{print $1}')"
+          test "$remote_digest" = "$KRISOS_DIGEST"
+          printf '%s\n' "$remote_digest" > main-payload.digest
+
+          cosign verify \
+            --certificate-identity 'https://github.com/krism-eu/KrisOS/.github/workflows/build-m1.yml@refs/heads/main' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            "ghcr.io/krism-eu/krisos@$KRISOS_DIGEST" 2>&1 | tee main-cosign-verify.log
+
           sudo podman pull --authfile "$authfile" "$KRISOS_TARGET_REF"
-          test "$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{.Digest}}')" = "$KRISOS_DIGEST"
           test "$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$KRISOS_COMMIT"
+          image_id="$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{.Id}}')"
+
           sudo podman run --rm --entrypoint /bin/bash "$KRISOS_TARGET_REF" -lc '
-            set -euo pipefail
-            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "0.5.1-7.fc44.x86_64"
-          '
-          sudo podman rmi -f "$KRISOS_TARGET_REF" || true
-
-      - name: Build final candidate bootc payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo podman build             --pull=always             --label 'org.opencontainers.image.source=https://github.com/krism-eu/KrisOS'             --label "org.opencontainers.image.revision=${GITHUB_SHA}"             -t localhost/krisos:k1-final             . 2>&1 | tee candidate-build.log
-
-      - name: Inspect final candidate payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo podman inspect localhost/krisos:k1-final --format '{{.Id}}'
-          test "$(sudo podman inspect localhost/krisos:k1-final --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
-          test "$(sudo podman inspect localhost/krisos:k1-final --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
-          test "$(sudo podman inspect localhost/krisos:k1-final --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
-
-          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:k1-final -lc '
             set -euo pipefail
             test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "0.5.1-10.fc44.x86_64"
             rpm -V krisCC
@@ -134,74 +126,28 @@ jobs:
             env QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic KRISCC_SMOKE_TEST=1 /usr/bin/krisCC --background
           '
 
-      - name: Exercise rk package layer
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo podman run --rm --security-opt label=disable             -e RK_DISPOSABLE_CONTAINER_TEST=1             -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro"             --entrypoint python3 localhost/krisos:k1-final /tmp/test-rk.py             2>&1 | tee rk-integration.log
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        with:
-          cosign-release: 'v3.0.6'
-
-      - name: Login to GHCR
-        shell: bash
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.docker"
-          printf '%s' "$GHCR_TOKEN" | podman login             --authfile "$HOME/.docker/config.json"             ghcr.io --username "$GHCR_USER" --password-stdin
-
-      - name: Publish immutable candidate payload
-        id: publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          candidate_ref="ghcr.io/krism-eu/krisos:k1-final-${GITHUB_SHA}"
-          sudo podman tag localhost/krisos:k1-final "$candidate_ref"
-          sudo podman push             --authfile "$HOME/.docker/config.json"             --digestfile candidate-payload.digest             "$candidate_ref" 2>&1 | tee candidate-publish.log
-          digest="$(cat candidate-payload.digest)"
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-          image_id="$(sudo podman image inspect "$candidate_ref" --format '{{.Id}}')"
-          echo "ref=$candidate_ref" >> "$GITHUB_OUTPUT"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "ref=$KRISOS_TARGET_REF" >> "$GITHUB_OUTPUT"
+          echo "digest=$KRISOS_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "commit=$KRISOS_COMMIT" >> "$GITHUB_OUTPUT"
           echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
 
-      - name: Sign and verify candidate payload
+      - name: Exercise rk package layer on main payload
         shell: bash
         env:
-          CANDIDATE_REF: ${{ steps.publish.outputs.ref }}
-          CANDIDATE_DIGEST: ${{ steps.publish.outputs.digest }}
+          MAIN_REF: ${{ steps.main_payload.outputs.ref }}
         run: |
           set -euo pipefail
-          image="${CANDIDATE_REF%@*}@${CANDIDATE_DIGEST}"
-          cosign sign --yes "$image"
-          cosign verify             --certificate-identity "https://github.com/krism-eu/KrisOS/.github/workflows/build-k1-final-iso.yml@refs/heads/k1.0-final-restyle-fixes"             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'             "$image" 2>&1 | tee candidate-cosign-verify.log
+          sudo podman run --rm --security-opt label=disable \
+            -e RK_DISPOSABLE_CONTAINER_TEST=1 \
+            -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
+            --entrypoint python3 "$MAIN_REF" /tmp/test-rk.py \
+            2>&1 | tee rk-integration.log
 
-      - name: Verify anonymous candidate pull
+      - name: Build offline Anaconda ISO from exact main payload
         shell: bash
         env:
-          CANDIDATE_REF: ${{ steps.publish.outputs.ref }}
-          CANDIDATE_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: |
-          set -euo pipefail
-          authfile="$(mktemp)"
-          trap 'rm -f "$authfile"' EXIT
-          printf '{"auths":{}}\n' > "$authfile"
-          skopeo inspect --raw --authfile "$authfile" "docker://$CANDIDATE_REF" > anonymous-manifest.json
-          test -s anonymous-manifest.json
-          remote_digest="sha256:$(sha256sum anonymous-manifest.json | awk '{print $1}')"
-          test "$remote_digest" = "$CANDIDATE_DIGEST"
-          printf '%s\n' "$remote_digest" > anonymous-pull.digest
-
-      - name: Build offline Anaconda ISO from candidate payload
-        shell: bash
-        env:
-          KRISOS_PAYLOAD_REF: ${{ steps.publish.outputs.ref }}
-          KRISOS_PAYLOAD_IMAGE_ID: ${{ steps.publish.outputs.image_id }}
+          KRISOS_PAYLOAD_REF: ${{ steps.main_payload.outputs.ref }}
+          KRISOS_PAYLOAD_IMAGE_ID: ${{ steps.main_payload.outputs.image_id }}
         run: |
           set -euo pipefail
           bash installer/build-installer.sh 2>&1 | tee installer-build.log
@@ -209,8 +155,9 @@ jobs:
       - name: Verify and seal ISO backup bundle
         shell: bash
         env:
-          CANDIDATE_REF: ${{ steps.publish.outputs.ref }}
-          CANDIDATE_DIGEST: ${{ steps.publish.outputs.digest }}
+          MAIN_REF: ${{ steps.main_payload.outputs.ref }}
+          MAIN_DIGEST: ${{ steps.main_payload.outputs.digest }}
+          MAIN_COMMIT: ${{ steps.main_payload.outputs.commit }}
         run: |
           set -euo pipefail
           iso="$(find installer/output -type f -name '*.iso' -print -quit)"
@@ -229,9 +176,6 @@ jobs:
           grep -Eq 'El Torito boot img :.*BIOS.* y ' iso-eltorito.txt
           grep -Eq 'El Torito boot img :.*UEFI.* y ' iso-eltorito.txt
 
-          # Verify the actual installer kernel/initramfs carried by the ISO.
-          # The GRUB config can reside inside the appended EFI FAT image, so
-          # do not assume it is an extractable ISO9660 file.
           xorriso -indev "$iso" -ls /images/pxeboot 2>&1 | tee iso-pxeboot.txt
           grep -Fq 'vmlinuz' iso-pxeboot.txt
           grep -Fq 'initrd.img' iso-pxeboot.txt
@@ -259,25 +203,22 @@ jobs:
           print("Verified installer SquashFS compression: zstd")
           PY
 
-          cat > installer/output/KrisOS-candidate-payload.lock <<EOF
-          KRISOS_COMMIT=${GITHUB_SHA}
-          KRISOS_TARGET_REF=${CANDIDATE_REF}
-          KRISOS_DIGEST=${CANDIDATE_DIGEST}
-          EOF
-          cp build_files/krisCC-candidate.lock installer/output/
-          cp build_files/KrisOS-payload.lock installer/output/KrisOS-stable-backup.lock
-          cp build_files/krisCC.lock installer/output/krisCC-stable-backup.lock
+          cp build_files/KrisOS-payload.lock installer/output/KrisOS-main-payload.lock
+          cp build_files/krisCC.lock installer/output/krisCC-main.lock
           cp docs/K1_STABLE_BACKUP.md installer/output/
 
           (
             cd installer/output
-            find . -type f ! -name SHA256SUMS -print0               | LC_ALL=C sort -z               | xargs -0 sha256sum > SHA256SUMS
+            find . -type f ! -name SHA256SUMS -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
             sha256sum --check SHA256SUMS
           )
 
           printf 'ISO bytes: '
           stat -c '%s' "$iso"
           sha256sum "$iso" | tee final-iso.sha256
+          printf 'Embedded main: %s @ %s (%s)\n' "$MAIN_REF" "$MAIN_DIGEST" "$MAIN_COMMIT"
           df -h /
 
       - name: Preserve ISO diagnostics on failure
@@ -287,27 +228,28 @@ jobs:
           name: krisos-k1-diagnostics-${{ github.sha }}
           path: |
             installer/output/**
+            main-payload.digest
+            main-manifest.json
+            main-cosign-verify.log
+            rk-integration.log
             installer-build.log
             iso-pvd.txt
             iso-eltorito.txt
             iso-pxeboot.txt
-            candidate-payload.digest
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      - name: Upload final ISO backup
+
+      - name: Upload final main-aligned ISO backup
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: krisos-k1-final-restyle-fixes-${{ github.sha }}
+          name: krisos-k1-main-aligned-${{ github.sha }}
           path: |
             installer/output/**
-            candidate-build.log
+            main-payload.digest
+            main-manifest.json
+            main-cosign-verify.log
             rk-integration.log
-            candidate-payload.digest
-            candidate-publish.log
-            candidate-cosign-verify.log
-            anonymous-pull.digest
-            anonymous-manifest.json
             installer-build.log
             iso-pvd.txt
             iso-eltorito.txt
