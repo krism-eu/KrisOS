@@ -93,7 +93,7 @@ not select the historical `bootc-installer` image type.
 
 ## Security note
 
-The ISO boot entry does not pass `selinux=` or `enforcing=`. Anaconda's installation environment keeps SELinux enabled and runs it permissive by default, so the live graphical installer is not forced into enforcing mode.
+The ISO boot entry explicitly uses `selinux=1 enforcing=0`. This keeps the SELinux LSM and policy active in the live installer while making access denials permissive during the Anaconda runtime. `selinux=0` is forbidden because it disables SELinux rather than merely relaxing enforcement, and `enforcing=1` is forbidden for the live installer because the container-derived installer tree is not validated for enforcing-mode boot.
 
 The interactive Anaconda defaults explicitly contain `selinux --enforcing` for the installed system. The embedded KrisOS payload also carries `SELINUX=enforcing` in `/etc/selinux/config`. Post-install validation must confirm `getenforce == Enforcing` and that the installed kernel command line contains neither `selinux=0` nor `enforcing=0`.
 

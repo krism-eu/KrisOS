@@ -71,8 +71,9 @@ jobs:
             echo "ERROR: ISO kernel arguments enable unattended installation" >&2
             exit 1
           fi
-          if grep -Eq '(^|[[:space:]])(selinux|enforcing)=' installer/iso.yaml; then
-            echo "ERROR: ISO kernel arguments must not override SELinux; Anaconda live SELinux runs permissive by default" >&2
+          grep -Fq 'selinux=1 enforcing=0' installer/iso.yaml
+          if grep -Eq '(^|[[:space:]])(selinux=0|enforcing=1)([[:space:]]|$)' installer/iso.yaml; then
+            echo "ERROR: live installer must keep SELinux enabled and permissive" >&2
             exit 1
           fi
           grep -Fq "'selinux --enforcing'" installer/Containerfile
