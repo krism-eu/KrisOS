@@ -170,7 +170,9 @@ jobs:
             -f installer/Containerfile \
             -t localhost/krisos-installer-contract:k1.0 \
             installer
-          sudo podman run --rm --entrypoint /bin/bash localhost/krisos-installer-contract:k1.0 -lc '
+          sudo podman run --rm \
+            -e KRISOS_PAYLOAD_REF="$KRISOS_PAYLOAD_REF" \
+            --entrypoint /bin/bash localhost/krisos-installer-contract:k1.0 -lc '
             set -euo pipefail
             defaults=/usr/share/anaconda/interactive-defaults.ks
             test -s "$defaults"
@@ -178,7 +180,7 @@ jobs:
             grep -Fxq "lang it_IT.UTF-8" "$defaults"
             grep -Fxq "keyboard --vckeymap=it --xlayouts=it" "$defaults"
             grep -Fxq "timezone Europe/Rome --utc" "$defaults"
-            grep -Fq "bootc --source-imgref=registry:" "$defaults"
+            grep -Fxq "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" "$defaults"
             ! grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)" "$defaults"
           '
 
@@ -221,16 +223,20 @@ jobs:
 
           manifest="$(find installer/output -type f -name '*.osbuild-manifest.json' -print -quit)"
           test -n "$manifest"
-          python3 - "$manifest" <<'PY'
+          python3 - "$manifest" "$MAIN_REF" <<'PY'
           import json
           import sys
           with open(sys.argv[1], encoding="utf-8") as stream:
               manifest = json.load(stream)
           methods = []
+          kickstart_options = []
+          payload_ref = sys.argv[2]
           def walk(value):
               if isinstance(value, dict):
                   if value.get("type") == "org.osbuild.squashfs":
                       methods.append(((value.get("options") or {}).get("compression") or {}).get("method"))
+                  if value.get("type") == "org.osbuild.kickstart":
+                      kickstart_options.append(value.get("options") or {})
                   for child in value.values():
                       walk(child)
               elif isinstance(value, list):
@@ -239,224 +245,14 @@ jobs:
           walk(manifest)
           if "zstd" not in methods:
               raise SystemExit(f"installer SquashFS is not zstd-compressed: {methods!r}")
+          if payload_ref not in json.dumps(manifest, sort_keys=True):
+              raise SystemExit("validated payload reference is missing from installer manifest")
+          forbidden = ("clearpart", "autopart", "rootpw", "inst.ks", "reboot", "shutdown")
+          serialized_ks = json.dumps(kickstart_options, sort_keys=True).lower()
+          if any(token in serialized_ks for token in forbidden):
+              raise SystemExit(f"unattended/destructive kickstart stage found: {serialized_ks}")
           print("Verified installer SquashFS compression: zstd")
-          PY
-
-          cp build_files/KrisOS-payload.lock installer/output/KrisOS-main-payload.lock
-          cp build_files/krisCC.lock installer/output/krisCC-main.lock
-          cp docs/K1_STABLE_BACKUP.md installer/output/
-
-          (
-            cd installer/output
-            find . -type f ! -name SHA256SUMS -print0 \
-              | LC_ALL=C sort -z \
-              | xargs -0 sha256sum > SHA256SUMS
-            sha256sum --check SHA256SUMS
-          )
-
-          printf 'ISO bytes: '
-          stat -c '%s' "$iso"
-          sha256sum "$iso" | tee final-iso.sha256
-          printf 'Embedded main: %s @ %s (%s)\n' "$MAIN_REF" "$MAIN_DIGEST" "$MAIN_COMMIT"
-          df -h /
-
-      - name: Preserve ISO diagnostics on failure
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: krisos-k1-diagnostics-${{ github.sha }}
-          path: |
-            installer/output/**
-            main-payload.digest
-            main-manifest.json
-            main-cosign-verify.log
-            rk-integration.log
-            installer-build.log
-            iso-pvd.txt
-            iso-eltorito.txt
-            iso-pxeboot.txt
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-
-      - name: Upload final main-aligned ISO backup
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: krisos-k1-main-aligned-${{ github.sha }}
-          path: |
-            installer/output/**
-            main-payload.digest
-            main-manifest.json
-            main-cosign-verify.log
-            rk-integration.log
-            installer-build.log
-            iso-pvd.txt
-            iso-eltorito.txt
-            iso-pxeboot.txt
-            final-iso.sha256
-            tests/boot-check.sh
-            tests/release-check.sh
-            tests/k1-final-contract.sh
-            installer/README.md
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
- installer/build-installer.sh; then
-            echo "ERROR: historical bootc-installer image type is forbidden" >&2
-            exit 1
-          fi
-          grep -Fq -- '--bootc-default-fs ext4' installer/build-installer.sh
-          grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF=' installer/build-installer.sh
-          grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
-          ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile
-
-      - name: Verify stable krisCC component lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/fetch-kriscc-component.sh
-          source build_files/krisCC.lock
-          test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
-          test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
-          test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
-          test "$(rpm -qp --qf '%{VERSION}-%{RELEASE}.%{ARCH}' build_files/krisCC/krisCC.rpm)" = "0.6.0-1.fc44.x86_64"
-
-      - name: Install build tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y podman skopeo xorriso
-          sudo podman version
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        with:
-          cosign-release: 'v3.0.6'
-
-      - name: Verify and pull signed main payload
-        id: main_payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          source build_files/KrisOS-payload.lock
-          authfile="$(mktemp)"
-          trap 'rm -f "$authfile"' EXIT
-          printf '{"auths":{}}\n' > "$authfile"
-
-          skopeo inspect --raw --authfile "$authfile" "docker://$KRISOS_TARGET_REF" > main-manifest.json
-          remote_digest="sha256:$(sha256sum main-manifest.json | awk '{print $1}')"
-          test "$remote_digest" = "$KRISOS_DIGEST"
-          printf '%s\n' "$remote_digest" > main-payload.digest
-
-          cosign verify \
-            --certificate-identity 'https://github.com/krism-eu/KrisOS/.github/workflows/build-m1.yml@refs/heads/main' \
-            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-            "ghcr.io/krism-eu/krisos@$KRISOS_DIGEST" 2>&1 | tee main-cosign-verify.log
-
-          sudo podman pull --authfile "$authfile" "$KRISOS_TARGET_REF"
-          test "$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$KRISOS_COMMIT"
-          image_id="$(sudo podman image inspect "$KRISOS_TARGET_REF" --format '{{.Id}}')"
-
-          sudo podman run --rm --entrypoint /bin/bash "$KRISOS_TARGET_REF" -lc '
-            set -euo pipefail
-            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "0.6.0-1.fc44.x86_64"
-            rpm -V krisCC
-            rpm -q dnf5-plugins amd-ucode-firmware
-            grep -Fxq "HOME=/var/home" /etc/default/useradd
-            matchpathcon -n /var/home/kris | grep -q ":user_home_dir_t:"
-            matchpathcon -n /var/home/kris/.config | grep -q ":config_home_t:"
-            matchpathcon -n /var/home/kris/.local/share | grep -q ":data_home_t:"
-            test -f /usr/lib/firmware/amd-ucode/microcode_amd_fam19h.bin
-            count=0
-            for kernel_dir in /usr/lib/modules/*; do
-              test -f "$kernel_dir/modules.dep" || continue
-              test -s "$kernel_dir/initramfs.img"
-              lsinitrd "$kernel_dir/initramfs.img" | grep -F "kernel/x86/microcode/AuthenticAMD.bin" >/dev/null
-              count=$((count + 1))
-            done
-            test "$count" -ge 1
-            test -x /usr/bin/qdirstat
-            grep -Fxq krisCC /usr/share/krisos/owned-packages.txt
-            bootc container lint
-            env QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic KRISCC_SMOKE_TEST=1 /usr/bin/krisCC --background
-          '
-
-          echo "ref=$KRISOS_TARGET_REF" >> "$GITHUB_OUTPUT"
-          echo "digest=$KRISOS_DIGEST" >> "$GITHUB_OUTPUT"
-          echo "commit=$KRISOS_COMMIT" >> "$GITHUB_OUTPUT"
-          echo "image_id=$image_id" >> "$GITHUB_OUTPUT"
-
-      - name: Exercise rk package layer on main payload
-        shell: bash
-        env:
-          MAIN_REF: ${{ steps.main_payload.outputs.ref }}
-        run: |
-          set -euo pipefail
-          sudo podman run --rm --security-opt label=disable \
-            -e RK_DISPOSABLE_CONTAINER_TEST=1 \
-            -v "$PWD/tests/test_rk_container.py:/tmp/test-rk.py:ro" \
-            --entrypoint python3 "$MAIN_REF" /tmp/test-rk.py \
-            2>&1 | tee rk-integration.log
-
-      - name: Build offline Anaconda ISO from exact main payload
-        shell: bash
-        env:
-          KRISOS_PAYLOAD_REF: ${{ steps.main_payload.outputs.ref }}
-          KRISOS_PAYLOAD_IMAGE_ID: ${{ steps.main_payload.outputs.image_id }}
-        run: |
-          set -euo pipefail
-          bash installer/build-installer.sh 2>&1 | tee installer-build.log
-
-      - name: Verify and seal ISO backup bundle
-        shell: bash
-        env:
-          MAIN_REF: ${{ steps.main_payload.outputs.ref }}
-          MAIN_DIGEST: ${{ steps.main_payload.outputs.digest }}
-          MAIN_COMMIT: ${{ steps.main_payload.outputs.commit }}
-        run: |
-          set -euo pipefail
-          iso="$(find installer/output -type f -name '*.iso' -print -quit)"
-          test -n "$iso"
-          test -s "$iso"
-
-          (
-            cd installer/output
-            sha256sum --check SHA256SUMS
-          )
-
-          xorriso -indev "$iso" -pvd_info 2>&1 | tee iso-pvd.txt
-          grep -Fq "Volume id    : 'Fedora-S-dvd-x86_64-45'" iso-pvd.txt
-
-          xorriso -indev "$iso" -report_el_torito plain 2>&1 | tee iso-eltorito.txt
-          grep -Eq 'El Torito boot img :.*BIOS.* y ' iso-eltorito.txt
-          grep -Eq 'El Torito boot img :.*UEFI.* y ' iso-eltorito.txt
-
-          xorriso -indev "$iso" -ls /images/pxeboot 2>&1 | tee iso-pxeboot.txt
-          grep -Fq 'vmlinuz' iso-pxeboot.txt
-          grep -Fq 'initrd.img' iso-pxeboot.txt
-
-          manifest="$(find installer/output -type f -name '*.osbuild-manifest.json' -print -quit)"
-          test -n "$manifest"
-          python3 - "$manifest" <<'PY'
-          import json
-          import sys
-          with open(sys.argv[1], encoding="utf-8") as stream:
-              manifest = json.load(stream)
-          methods = []
-          def walk(value):
-              if isinstance(value, dict):
-                  if value.get("type") == "org.osbuild.squashfs":
-                      methods.append(((value.get("options") or {}).get("compression") or {}).get("method"))
-                  for child in value.values():
-                      walk(child)
-              elif isinstance(value, list):
-                  for child in value:
-                      walk(child)
-          walk(manifest)
-          if "zstd" not in methods:
-              raise SystemExit(f"installer SquashFS is not zstd-compressed: {methods!r}")
-          print("Verified installer SquashFS compression: zstd")
+          print("Verified embedded payload reference and interactive kickstart contract")
           PY
 
           cp build_files/KrisOS-payload.lock installer/output/KrisOS-main-payload.lock
