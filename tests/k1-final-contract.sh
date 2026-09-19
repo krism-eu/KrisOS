@@ -62,6 +62,16 @@ grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-inst
 grep -Fq 'ARG KRISOS_PAYLOAD_REF' installer/Containerfile
 grep -Fq "'graphical'" installer/Containerfile
 grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
+grep -Fq 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' installer/Containerfile
+grep -Fq 'list-harddrives-stub /usr/bin/list-harddrives' installer/Containerfile
+grep -Fq '/etc/anaconda.repos.d' installer/Containerfile
+grep -Fq 'anaconda.target /etc/systemd/system/default.target' installer/Containerfile
+grep -Fq 'systemd-gpt-auto-generator' installer/Containerfile
+grep -Fq 'anaconda-shell@.service /usr/lib/systemd/system/autovt@.service' installer/Containerfile
+grep -Fq 'COPY anaconda-shell.conf /usr/lib/systemd/logind.conf.d/anaconda-shell.conf' installer/Containerfile
+grep -Fq -- '--add "anaconda"' installer/Containerfile
+grep -Fq 'pipewire.service.d/allowroot.conf' installer/Containerfile
+grep -Fq 'pipewire.socket.d/allowroot.conf' installer/Containerfile
 if grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile; then
   echo "ERROR: installer container bakes unattended/destructive directives" >&2
   exit 1
