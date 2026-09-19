@@ -3,6 +3,7 @@
 from contextlib import redirect_stdout
 import importlib.machinery
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -23,7 +24,59 @@ def guard_output(*args):
     raise AssertionError(f'unexpected command: {args!r}')
 
 
+class FakeRepoConfig:
+    def __init__(self, enabled):
+        self.enabled = enabled
+        self.pkg_gpgcheck = False
+
+
+class FakeRepo:
+    def __init__(self, enabled):
+        self.config = FakeRepoConfig(enabled)
+
+    def get_config(self):
+        return self.config
+
+
 class Policy(unittest.TestCase):
+    def test_repo_hardening_preserves_admin_enabled_state(self):
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                repo = FakeRepo(enabled)
+                rk.harden_repo(repo)
+                self.assertEqual(repo.config.enabled, enabled)
+                self.assertTrue(repo.config.pkg_gpgcheck)
+
+    def test_plan_lock_missing_falls_back_read_only(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)):
+            self.assertIsNone(rk.acquire_plan_lock())
+
+    def test_plan_lock_uses_readonly_shared_nonblocking_lock(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)):
+            path = Path(directory) / 'lock'
+            path.write_text('')
+            real_open = os.open
+            calls = []
+            def tracked_open(file, flags, *args):
+                calls.append((Path(file), flags))
+                return real_open(file, flags, *args)
+            with mock.patch.object(rk.os, 'open', side_effect=tracked_open):
+                fd = rk.acquire_plan_lock()
+                try:
+                    self.assertEqual(calls[0], (path, os.O_RDONLY))
+                finally:
+                    os.close(fd)
+
+    def test_plan_lock_busy_has_clear_error(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)), \
+                mock.patch.object(rk.fcntl, 'flock', side_effect=BlockingIOError):
+            (Path(directory) / 'lock').write_text('')
+            with self.assertRaisesRegex(RuntimeError, 'Another rk transaction is in progress'):
+                rk.acquire_plan_lock()
+
     def test_all_base_actions_rejected(self):
         for action in ('Install', 'Remove', 'Upgrade', 'Downgrade', 'Reinstall', 'Replaced'):
             with self.subTest(action=action), self.assertRaises(RuntimeError):

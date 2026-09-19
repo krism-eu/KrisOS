@@ -224,6 +224,38 @@ RUN set -eux; \
     rm -f /tmp/krisCC.rpm
 COPY build_files/krisCC-autostart.desktop /etc/xdg/autostart/krisCC-background.desktop
 
+# Fedora's canonical bootc initramfs must be regenerated after the KrisOS
+# hardware firmware delta is installed. The pinned base initramfs predates the
+# layered amd-ucode-firmware package; without this rebuild the deployed /boot
+# copy can omit AuthenticAMD.bin even though the firmware RPM is installed.
+RUN set -eux; \
+    test -f /usr/lib/firmware/amd-ucode/microcode_amd_fam19h.bin; \
+    generated=0; \
+    for kernel_dir in /usr/lib/modules/*; do \
+      test -d "$kernel_dir" || continue; \
+      test -f "$kernel_dir/modules.dep" || continue; \
+      kver="${kernel_dir##*/}"; \
+      dracut --force --no-hostonly --early-microcode --reproducible --zstd \
+        "$kernel_dir/initramfs.img" "$kver"; \
+      test -s "$kernel_dir/initramfs.img"; \
+      lsinitrd "$kernel_dir/initramfs.img" | grep -F 'kernel/x86/microcode/AuthenticAMD.bin' >/dev/null; \
+      generated=$((generated + 1)); \
+    done; \
+    test "$generated" -ge 1
+
+# KrisOS stores persistent user homes under /var/home while /home is the bootc/
+# OSTree compatibility link. Fedora SELinux homedir rules are generated from
+# /etc/default/useradd when usepasswd=False, so set the correct default root and
+# rebuild policy before any installed-system user is created by Anaconda.
+RUN set -eux; \
+    test -f /etc/default/useradd; \
+    sed -ri 's|^HOME=.*$|HOME=/var/home|' /etc/default/useradd; \
+    grep -Fxq 'HOME=/var/home' /etc/default/useradd; \
+    semodule -B; \
+    matchpathcon -n /var/home/kris | grep -q ':user_home_dir_t:'; \
+    matchpathcon -n /var/home/kris/.config | grep -q ':config_home_t:'; \
+    matchpathcon -n /var/home/kris/.local/share | grep -q ':data_home_t:'
+
 # Snapshot every immutable package name owned by the final image: pinned Fedora
 # base plus the KrisOS delta. RPM key pseudo-packages are deliberately not
 # package-ownership policy; M1 handles repository/key trust separately.
@@ -302,6 +334,19 @@ RUN set -eux; \
     test -x /usr/bin/krisCC; \
     rpm -q krisCC; \
     rpm -V krisCC; \
+    grep -Fxq 'HOME=/var/home' /etc/default/useradd; \
+    matchpathcon -n /var/home/kris | grep -q ':user_home_dir_t:'; \
+    matchpathcon -n /var/home/kris/.config | grep -q ':config_home_t:'; \
+    matchpathcon -n /var/home/kris/.local/share | grep -q ':data_home_t:'; \
+    test -f /usr/lib/firmware/amd-ucode/microcode_amd_fam19h.bin; \
+    kernel_count=0; \
+    for kernel_dir in /usr/lib/modules/*; do \
+      test -f "$kernel_dir/modules.dep" || continue; \
+      test -s "$kernel_dir/initramfs.img"; \
+      lsinitrd "$kernel_dir/initramfs.img" | grep -F 'kernel/x86/microcode/AuthenticAMD.bin' >/dev/null; \
+      kernel_count=$((kernel_count + 1)); \
+    done; \
+    test "$kernel_count" -ge 1; \
     test -f /usr/share/applications/krisCC.desktop; \
     test -f /usr/share/metainfo/org.kriscc.KrisCC.metainfo.xml; \
     test -f /usr/share/polkit-1/actions/org.kriscc.controlcenter.policy; \
