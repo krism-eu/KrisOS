@@ -45,6 +45,7 @@ RUN test -n "$KRISOS_PAYLOAD_REF" && \
     'lang it_IT.UTF-8' \
     'keyboard --vckeymap=it --xlayouts=it' \
     'timezone Europe/Rome --utc' \
+    'selinux --enforcing' \
     "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" \
     > /usr/share/anaconda/interactive-defaults.ks && \
     ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' \

@@ -93,8 +93,8 @@ not select the historical `bootc-installer` image type.
 
 ## Security note
 
-SELinux enforcing is part of the installer contract as well as the installed-system contract. The ISO boot entry explicitly uses `selinux=1 enforcing=1`; `selinux=0` and `enforcing=0` are forbidden. Physical K1.0 validation showed that treating `selinux=0` as disposable live-installer state was unsafe for this bootc-generic-iso path.
+The ISO boot entry does not pass `selinux=` or `enforcing=`. Anaconda's installation environment keeps SELinux enabled and runs it permissive by default, so the live graphical installer is not forced into enforcing mode.
 
-The embedded KrisOS payload also carries `SELINUX=enforcing` in `/etc/selinux/config`. Post-install validation must confirm both `getenforce == Enforcing` and that the installed kernel command line contains neither `selinux=0` nor `enforcing=0`.
+The interactive Anaconda defaults explicitly contain `selinux --enforcing` for the installed system. The embedded KrisOS payload also carries `SELINUX=enforcing` in `/etc/selinux/config`. Post-install validation must confirm `getenforce == Enforcing` and that the installed kernel command line contains neither `selinux=0` nor `enforcing=0`.
 
 `SHA256SUMS` detects corruption or accidental changes to a downloaded installer artifact. It is not a replacement for a future signed-release policy such as Cosign.

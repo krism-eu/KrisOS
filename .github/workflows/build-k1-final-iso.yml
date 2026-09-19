@@ -71,11 +71,11 @@ jobs:
             echo "ERROR: ISO kernel arguments enable unattended installation" >&2
             exit 1
           fi
-          grep -Fq 'selinux=1 enforcing=1' installer/iso.yaml
-          if grep -Eq '(^|[[:space:]])(selinux=0|enforcing=0)([[:space:]]|$)' installer/iso.yaml; then
-            echo "ERROR: ISO kernel arguments disable SELinux" >&2
+          if grep -Eq '(^|[[:space:]])(selinux|enforcing)=' installer/iso.yaml; then
+            echo "ERROR: ISO kernel arguments must not override SELinux; Anaconda live SELinux runs permissive by default" >&2
             exit 1
           fi
+          grep -Fq "'selinux --enforcing'" installer/Containerfile
           test ! -e kickstart/krisos.ks
 
       - name: Verify stable krisCC component lock
@@ -189,6 +189,7 @@ jobs:
             grep -Fxq "lang it_IT.UTF-8" "$defaults"
             grep -Fxq "keyboard --vckeymap=it --xlayouts=it" "$defaults"
             grep -Fxq "timezone Europe/Rome --utc" "$defaults"
+            grep -Fxq "selinux --enforcing" "$defaults"
             grep -Fxq "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" "$defaults"
             ! grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)" "$defaults"
 
