@@ -52,7 +52,22 @@ jobs:
           grep -Fq 'label: "Fedora-S-dvd-x86_64-45"' installer/iso.yaml
           grep -Fq 'inst.stage2=hd:LABEL=Fedora-S-dvd-x86_64-45' installer/iso.yaml
           grep -Fq 'bootc-generic-iso' installer/build-installer.sh
-          if grep -Eq '^[[:space:]]*bootc-installer[[:space:]]*
+          if grep -Eq '^[[:space:]]*bootc-installer[[:space:]]*$' installer/build-installer.sh; then
+            echo "ERROR: historical bootc-installer image type is forbidden" >&2
+            exit 1
+          fi
+          grep -Fq -- '--bootc-default-fs ext4' installer/build-installer.sh
+          grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-installer.sh
+          grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
+          if grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile; then
+            echo "ERROR: installer runtime contains unattended/destructive kickstart directives" >&2
+            exit 1
+          fi
+          if grep -Eq 'inst\.(ks|cmdline|noninteractive)' installer/iso.yaml; then
+            echo "ERROR: ISO kernel arguments enable unattended installation" >&2
+            exit 1
+          fi
+          test ! -e kickstart/krisos.ks
 
       - name: Verify stable krisCC component lock
         shell: bash
