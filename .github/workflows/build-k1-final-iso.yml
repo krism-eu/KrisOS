@@ -59,6 +59,10 @@ jobs:
           grep -Fq -- '--bootc-default-fs ext4' installer/build-installer.sh
           grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-installer.sh
           grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
+          grep -Fq 'install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda' installer/Containerfile
+          grep -Fq 'list-harddrives-stub /usr/bin/list-harddrives' installer/Containerfile
+          grep -Fq 'anaconda.target /etc/systemd/system/default.target' installer/Containerfile
+          grep -Fq -- '--add "anaconda"' installer/Containerfile
           if grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile; then
             echo "ERROR: installer runtime contains unattended/destructive kickstart directives" >&2
             exit 1
@@ -182,6 +186,21 @@ jobs:
             grep -Fxq "timezone Europe/Rome --utc" "$defaults"
             grep -Fxq "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" "$defaults"
             ! grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)" "$defaults"
+
+            getent passwd install | grep -Fq "/usr/libexec/anaconda/run-anaconda"
+            test -x /usr/bin/list-harddrives
+            test -d /etc/anaconda.repos.d
+            test "$(readlink -f /etc/systemd/system/default.target)" = "/usr/lib/systemd/system/anaconda.target"
+            test ! -e /usr/lib/systemd/system-generators/systemd-gpt-auto-generator
+            test "$(readlink -f /usr/lib/systemd/system/autovt@.service)" = "/usr/lib/systemd/system/anaconda-shell@.service"
+            grep -Fxq "ReserveVT=2" /usr/lib/systemd/logind.conf.d/anaconda-shell.conf
+            grep -Fxq "ConditionUser=" /etc/systemd/user/pipewire.service.d/allowroot.conf
+            grep -Fxq "ConditionUser=" /etc/systemd/user/pipewire.socket.d/allowroot.conf
+
+            kernel="$(kernel-install list --json pretty | jq -r ".[] | select(.has_kernel == true) | .version" | head -n1)"
+            test -n "$kernel"
+            test -s "/usr/lib/modules/$kernel/initramfs.img"
+            lsinitrd "/usr/lib/modules/$kernel/initramfs.img" | grep -E 'anaconda|anaconda-lib' >/dev/null
           '
 
       - name: Build offline Anaconda ISO from exact main payload
