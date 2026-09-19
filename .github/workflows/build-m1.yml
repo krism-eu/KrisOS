@@ -67,6 +67,10 @@ jobs:
           grep -Fxq 'ARG RELEASE=0.1.0-m1' Containerfile
           grep -Fq 'rpm -q krisCC' Containerfile
           grep -Fq 'grep -Fxq krisCC /usr/share/krisos/owned-packages.txt' Containerfile
+          grep -Fq 'HOME=/var/home' Containerfile
+          grep -Fq 'semodule -B' Containerfile
+          grep -Fq 'dracut --force --no-hostonly --early-microcode --reproducible --zstd' Containerfile
+          grep -Fq 'AuthenticAMD.bin' Containerfile
           grep -Fq 'COPY systemd/krisos-sync.timer /usr/lib/systemd/system/krisos-sync.timer' Containerfile
           grep -Fq 'systemctl enable krisos-sync.timer' Containerfile
           ! grep -Fq 'systemctl enable krisos-sync.service' Containerfile
@@ -118,7 +122,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y podman
+          sudo apt-get install -y podman skopeo
           sudo podman version
 
       - name: Build bootc image
@@ -157,6 +161,9 @@ jobs:
             rpm -q krisCC &&
             rpm -V krisCC &&
             test -x /usr/bin/krisCC &&
+            grep -Fxq "HOME=/var/home" /etc/default/useradd &&
+            matchpathcon -n /var/home/kris | grep -q ":user_home_dir_t:" &&
+            test -s "/usr/lib/modules/$(ls /usr/lib/modules | head -n1)/initramfs.img" &&
             systemctl is-enabled krisos-sync.timer | grep -qx enabled &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
@@ -247,13 +254,12 @@ jobs:
           trap 'rm -f "$authfile"' EXIT
           printf '{"auths":{}}\n' > "$authfile"
 
-          sudo podman pull --authfile "$authfile" "$immutable" 2>&1 | tee anonymous-pull-immutable.log
-          immutable_digest="$(sudo podman inspect "$immutable" --format '{{.Digest}}')"
+          skopeo inspect --raw --authfile "$authfile" "docker://$immutable" > anonymous-immutable-manifest.json
+          immutable_digest="sha256:$(sha256sum anonymous-immutable-manifest.json | awk '{print $1}')"
           test "$immutable_digest" = "$expected"
 
-          sudo podman rmi -f "$immutable"
-          sudo podman pull --authfile "$authfile" "$mutable" 2>&1 | tee anonymous-pull-m1.log
-          mutable_digest="$(sudo podman inspect "$mutable" --format '{{.Digest}}')"
+          skopeo inspect --raw --authfile "$authfile" "docker://$mutable" > anonymous-m1-manifest.json
+          mutable_digest="sha256:$(sha256sum anonymous-m1-manifest.json | awk '{print $1}')"
           test "$mutable_digest" = "$expected"
 
       - name: Preserve complete logs
@@ -270,4 +276,6 @@ jobs:
             publish-m1.log
             anonymous-pull-immutable.log
             anonymous-pull-m1.log
+            anonymous-immutable-manifest.json
+            anonymous-m1-manifest.json
           if-no-files-found: ignore
