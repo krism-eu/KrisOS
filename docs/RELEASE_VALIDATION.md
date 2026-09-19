@@ -2,7 +2,7 @@
 
 KrisOS uses a deliberately small end-to-end release check instead of reproducing a full openQA installation.
 
-The normal release path remains the bootc image from `main`. The validated K1 runtime fixes and krisCC 0.5.1-10 are now present on `main`; the installer branch remains separate only for Anaconda/ISO work. The fixed rollback/backup baseline is the signed immutable main commit `35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`, not the mutable `m1` tag.
+The normal release path remains the bootc image from `main`. The fixed backup baseline on `main` still carries krisCC 0.5.1-10; the final K1 candidate validates krisCC 0.6.0-1 on a separate runtime/installer path; the installer branch remains separate only for Anaconda/ISO work. The fixed rollback/backup baseline is the signed immutable main commit `35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`, not the mutable `m1` tag.
 
 ## Runtime check
 
@@ -31,7 +31,7 @@ Example:
 export KRISOS_E2E_TARGET=qa@192.0.2.10
 export KRISOS_E2E_SWITCH_IMAGE=ghcr.io/krism-eu/krisos:<immutable-commit>
 export KRISOS_EXPECT_IMAGE="$KRISOS_E2E_SWITCH_IMAGE"
-export KRISOS_EXPECT_KRISCC=0.5.1-10.fc44.x86_64
+export KRISOS_EXPECT_KRISCC=0.6.0-1.fc44.x86_64
 tests/run-release-vm.sh
 ```
 
