@@ -2,9 +2,9 @@ FROM quay.io/fedora/fedora-bootc:45
 
 ARG KRISOS_PAYLOAD_REF
 
-# Fedora 45 Anaconda runtime for the supported bootc-installer image type.
-# The KrisOS payload is supplied separately to Image Builder and embedded in
-# the resulting ISO; no payload reference is baked into this runtime image.
+# Fedora 45 Anaconda runtime for the recommended bootc-generic-iso image type.
+# The exact validated KrisOS payload reference is written into Anaconda's
+# interactive defaults and embedded into the final ISO.
 RUN dnf install -qy --setopt=install_weak_deps=False \
     anaconda \
     anaconda-install-env-deps \
@@ -33,8 +33,8 @@ RUN mkdir -p /var/mnt
 RUN mkdir -p /usr/lib/image-builder/bootc
 COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml
 
-# Interactive defaults only. Image Builder injects the embedded bootc payload
-# when it builds the bootc-installer ISO.
+# Interactive defaults only: preselect payload and localization, never
+# partitioning, credentials, completion actions or unattended mode.
 RUN test -n "$KRISOS_PAYLOAD_REF" && \
     printf '%s\n' \
     'graphical' \
