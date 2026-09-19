@@ -1,15 +1,14 @@
 # K1.0 stable backup references
 
-These values deliberately remain the exact validated `main` baseline while the
-K1.0 final candidate is tested. They are not the payload embedded in the
-candidate ISO.
+The K1 runtime fixes and krisCC 0.5.1-10 are now promoted to `main`.
+The fixed backup baseline therefore advances to the exact signed immutable
+`main` payload below; the mutable `m1` tag is not used as the backup lock.
 
-- KrisOS commit: `75e2584aa6681fefe6b5bc019aa64c812751a607`
-- KrisOS channel: `ghcr.io/krism-eu/krisos:m1`
-- KrisOS digest: `sha256:a13ddfd6d2d6032873cac8b1ea64fdeba6d93a9500da1c1222139314a8f9cb04`
-- krisCC stable component: `v0.5.1-7`
-- krisCC stable RPM SHA256: `ac7fe241599190c49aaf62338f41142b6025a64c3f073fc23e03a9846a17b56f`
+- KrisOS commit: `35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`
+- KrisOS immutable ref: `ghcr.io/krism-eu/krisos:35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`
+- KrisOS digest: `sha256:8c87cb770273f10e7b4eeabb48b709e54c95b6080473cd3c63ef732aa4145c41`
+- krisCC stable component: `v0.5.1-10`
+- krisCC stable RPM SHA256: `80bd3dc6a488688ed80ca7bb0462837a8fcafe8a1c2dc4849aa0e6bf62de941f`
 
-Do not advance these backup references on the candidate branch. After physical
-K1.0 validation succeeds and the same fixes/restyle are promoted to `main`,
-the backup baseline can be advanced in a separate reviewed change.
+This reference is the direct-bootc `main` baseline used for recovery/comparison
+while the installer ISO receives its final physical-machine validation.
