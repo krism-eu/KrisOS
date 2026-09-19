@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Stable backup baseline: never advance on the candidate branch.
+# Stable backup baseline: exact validated main payload after K1 runtime promotion.
 # shellcheck source=/dev/null
 source build_files/KrisOS-payload.lock
-test "$KRISOS_COMMIT" = "75e2584aa6681fefe6b5bc019aa64c812751a607"
-test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:m1"
-test "$KRISOS_DIGEST" = "sha256:a13ddfd6d2d6032873cac8b1ea64fdeba6d93a9500da1c1222139314a8f9cb04"
+test "$KRISOS_COMMIT" = "35c76d6a85033203f885e3e4bd6d7dcc6f1784c5"
+test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:35c76d6a85033203f885e3e4bd6d7dcc6f1784c5"
+test "$KRISOS_DIGEST" = "sha256:8c87cb770273f10e7b4eeabb48b709e54c95b6080473cd3c63ef732aa4145c41"
 
-# Stable krisCC backup component remains main's 0.5.1-7.
+# Stable krisCC backup component is main's 0.5.1-10.
 # shellcheck source=/dev/null
 source build_files/krisCC.lock
-test "$KRISCC_TAG" = "v0.5.1-7"
-test "$KRISCC_RPM" = "krisCC-0.5.1-7.fc44.x86_64.rpm"
-test "$KRISCC_SHA256" = "ac7fe241599190c49aaf62338f41142b6025a64c3f073fc23e03a9846a17b56f"
+test "$KRISCC_TAG" = "v0.5.1-10"
+test "$KRISCC_RPM" = "krisCC-0.5.1-10.fc44.x86_64.rpm"
+test "$KRISCC_SHA256" = "80bd3dc6a488688ed80ca7bb0462837a8fcafe8a1c2dc4849aa0e6bf62de941f"
 
 # Candidate restyle is separately pinned and immutable.
 # shellcheck source=/dev/null
