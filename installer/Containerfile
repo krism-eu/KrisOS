@@ -1,5 +1,7 @@
 FROM quay.io/fedora/fedora-bootc:45
 
+ARG KRISOS_PAYLOAD_REF
+
 # Fedora 45 Anaconda runtime for the supported bootc-installer image type.
 # The KrisOS payload is supplied separately to Image Builder and embedded in
 # the resulting ISO; no payload reference is baked into this runtime image.
@@ -33,11 +35,15 @@ COPY iso.yaml /usr/lib/image-builder/bootc/iso.yaml
 
 # Interactive defaults only. Image Builder injects the embedded bootc payload
 # when it builds the bootc-installer ISO.
-RUN printf '%s\n' \
+RUN test -n "$KRISOS_PAYLOAD_REF" && \
+    printf '%s\n' \
     'graphical' \
     'lang it_IT.UTF-8' \
     'keyboard --vckeymap=it --xlayouts=it' \
     'timezone Europe/Rome --utc' \
-    > /usr/share/anaconda/interactive-defaults.ks
+    "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" \
+    > /usr/share/anaconda/interactive-defaults.ks && \
+    ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' \
+      /usr/share/anaconda/interactive-defaults.ks
 
 RUN bootc container lint
