@@ -63,7 +63,7 @@ jobs:
           test "$(cat build_files/krisCC/RELEASE_TAG)" = "$KRISCC_TAG"
           test "$(cat build_files/krisCC/RELEASE_ASSET)" = "$KRISCC_RPM"
           test "$(cat build_files/krisCC/RELEASE_SHA256)" = "$KRISCC_SHA256"
-          test "$(rpm -qp --qf '%{VERSION}-%{RELEASE}.%{ARCH}' build_files/krisCC/krisCC.rpm)" = "0.5.1-10.fc44.x86_64"
+          test "$(rpm -qp --qf '%{VERSION}-%{RELEASE}.%{ARCH}' build_files/krisCC/krisCC.rpm)" = "0.6.0-1.fc44.x86_64"
 
       - name: Install build tools
         shell: bash
@@ -104,7 +104,7 @@ jobs:
 
           sudo podman run --rm --entrypoint /bin/bash "$KRISOS_TARGET_REF" -lc '
             set -euo pipefail
-            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "0.5.1-10.fc44.x86_64"
+            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "0.6.0-1.fc44.x86_64"
             rpm -V krisCC
             rpm -q dnf5-plugins amd-ucode-firmware
             grep -Fxq "HOME=/var/home" /etc/default/useradd
