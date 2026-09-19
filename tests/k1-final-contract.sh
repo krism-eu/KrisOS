@@ -50,7 +50,25 @@ grep -Fq "matchpathcon -n /var/home/kris" Containerfile
 
 # Installer storage/user setup stays interactive and non-destructive.
 grep -Fq 'bootc-generic-iso' installer/build-installer.sh
-if grep -Eq '^[[:space:]]*bootc-installer[[:space:]]*
+if grep -Eq '^[[:space:]]*bootc-installer[[:space:]]*$' installer/build-installer.sh; then
+  echo "ERROR: historical bootc-installer image type is forbidden" >&2
+  exit 1
+fi
+grep -Fq -- '--bootc-installer-payload-ref "$payload_ref"' installer/build-installer.sh
+grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-installer.sh
+grep -Fq 'ARG KRISOS_PAYLOAD_REF' installer/Containerfile
+grep -Fq 'graphical' installer/Containerfile
+grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
+if grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile; then
+  echo "ERROR: installer container bakes destructive/unattended kickstart directives" >&2
+  exit 1
+fi
+if grep -Eq 'inst\.(ks|cmdline|noninteractive)' installer/iso.yaml; then
+  echo "ERROR: ISO boot arguments enable unattended installation" >&2
+  exit 1
+fi
+test ! -e kickstart/krisos.ks
+grep -Fq '/boot/efi' installer/README.md
 grep -Fq '/var/home' installer/README.md
 grep -Fq 'administrator' installer/README.md
 grep -Fq 'No swap partition' installer/README.md
