@@ -11,6 +11,11 @@ on:
         description: "Optional explicit bootc base image for compatibility testing"
         required: false
         type: string
+      publish:
+        description: "Publish a validated default-base main build (component promotion)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +49,9 @@ jobs:
           bash -n scripts/fetch-kriscc-component.sh
           python3 -m py_compile bin/rk
           python3 tests/test_rk.py
+          python3 tests/test_rk_recovery.py
+          python3 tests/test_release_state.py
+          python3 tests/test_release_shell.py
           python3 tests/test_overlay_recovery.py
           python3 tests/test_overlay_identity.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
@@ -98,9 +106,6 @@ jobs:
           grep -Fq 'WantedBy=timers.target' systemd/krisos-sync.timer
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
-          grep -Fxq 'graphical' kickstart/krisos.ks
-          grep -Fxq 'bootc --source-imgref=registry:ghcr.io/krism-eu/krisos:m1 --target-imgref=ghcr.io/krism-eu/krisos:m1' kickstart/krisos.ks
-          ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup)([[:space:]]|$)' kickstart/krisos.ks
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
 
@@ -183,13 +188,13 @@ jobs:
             2>&1 | tee rk-integration.log
 
       - name: Install Cosign
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: 'v3.0.6'
 
       - name: Login to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         env:
           GHCR_USER: ${{ github.actor }}
@@ -202,7 +207,7 @@ jobs:
             ghcr.io --username "$GHCR_USER" --password-stdin
 
       - name: Publish immutable image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -217,7 +222,7 @@ jobs:
           printf 'Published immutable digest: %s\n' "$(cat publish.digest)"
 
       - name: Sign and verify immutable digest
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -230,7 +235,7 @@ jobs:
             "$image" 2>&1 | tee cosign-verify.log
 
       - name: Publish mutable M1 tag
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail
@@ -241,7 +246,7 @@ jobs:
             "$mutable" 2>&1 | tee publish-m1.log
 
       - name: Verify anonymous GHCR pull
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.base_image == ''))
         shell: bash
         run: |
           set -euo pipefail

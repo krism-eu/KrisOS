@@ -37,6 +37,7 @@ RUN printf '%s\n' \
     'lang it_IT.UTF-8' \
     'keyboard --vckeymap=it --xlayouts=it' \
     'timezone Europe/Rome --utc' \
+    'selinux --enforcing' \
     > /usr/share/anaconda/interactive-defaults.ks
 
 # Minimal lorax-equivalent setup required by the generic ISO path.

@@ -181,7 +181,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh workflow run build-m1.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh workflow run build-m1.yml --repo "$GITHUB_REPOSITORY" --ref main -f publish=true
 
       - name: Preserve candidate logs
         if: always() && steps.candidate.outputs.changed == 'true'

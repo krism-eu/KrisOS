@@ -84,6 +84,6 @@ This is the V1 mechanism for selecting the bootc URL; no custom Anaconda UI is a
 
 ## Security note
 
-The live installer entry currently uses `selinux=0`, matching the upstream minimal `bootc-generic-iso` Anaconda example. This affects only the disposable installer runtime, not the installed KrisOS system, whose SELinux policy remains enforcing. We can remove this boot argument later if Fedora 45 testing proves the generic installer path works correctly with SELinux enabled.
+The live installer keeps SELinux enabled and permissive with `selinux=1 enforcing=0`. Interactive defaults require `selinux --enforcing` for the installed system. The main installer is the historical remote-Kickstart path, not the validated K1 offline ISO; use the installer branch for that ISO.
 
 `SHA256SUMS` detects corruption or accidental changes to a downloaded installer artifact. It is not a replacement for a future signed-release policy such as Cosign.

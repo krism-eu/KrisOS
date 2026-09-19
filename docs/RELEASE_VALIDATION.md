@@ -9,11 +9,11 @@ The normal release path is the bootc image from `main`. The ISO is a secondary i
 `tests/release-check.sh` runs on a booted KrisOS system. It reuses `tests/boot-check.sh` and additionally verifies:
 
 - bootc status is readable as JSON;
-- the expected image reference is present when `KRISOS_EXPECT_IMAGE` is set;
+- the exact expected reference is in `status.booted.image.image.image` when `KRISOS_EXPECT_IMAGE` is set; staged and rollback references cannot satisfy this check;
 - krisCC is installed, verifies cleanly and matches the immutable owned-package snapshots;
 - the expected krisCC EVRA is present when `KRISOS_EXPECT_KRISCC` is set;
 - `krisos-sync.timer` is enabled and active;
-- `rk status` succeeds;
+- `rk status` reports a ready overlay with neither pending recovery nor needs-sync;
 - krisCC passes the same offscreen runtime smoke used by CI;
 - the image-level useradd default is `HOME=/var/home` and SELinux resolves user/config/data paths below `/var/home`;
 - the canonical initramfs contains AMD early microcode (`AuthenticAMD.bin`);
@@ -49,3 +49,12 @@ The installer ISO should embed the exact immutable payload already validated fro
 The `/var/home` useradd default and SELinux homedir policy are image defaults for future user creation and installer consistency; they do not rewrite an existing account's passwd entry during an update.
 
 Installer-specific Anaconda, partitioning and ISO build logic stays on the installer branch. Once a main payload is validated and published, installer validation should embed that exact immutable main payload rather than rebuilding a second OS payload.
+
+## Corrective source revision
+
+The SSH harness forwards `KRISOS_EXPECT_ADMIN_USER` and includes release-state.py.
+All three files boot-check.sh, release-check.sh and release-state.py must remain
+together when running the release checks manually.
+Component promotion dispatches Build M1 with publish=true; compatibility builds
+with base_image overrides remain non-publishing. Runtime fixes require a new
+main build, signature, and validated payload lock before they enter an offline ISO.

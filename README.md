@@ -16,7 +16,8 @@ metadata DNF in background.
 ## Build
 
 ```bash
-sudo podman build -t localhost/krisos:m0 .
+bash scripts/fetch-kriscc-component.sh
+sudo podman build -t localhost/krisos:m1 .
 ```
 
 La base Fedora è fissata per digest nel `Containerfile`; un aggiornamento della

@@ -64,3 +64,13 @@ Validation gates:
 
 Only gates actually executed may be reported as passing. Container tests cannot
 prove boot correctness, persistence or recovery.
+
+## Recovering an unavailable request
+
+If deployment recovery cannot install a saved request, inspect the rk sync error.
+Use `sudo rk forget NAME` only for a request that is absent from the installed
+overlay (or now owned by the base image), then run `sudo rk sync`. The command
+requires `needs-sync`, a healthy overlay, no interrupted transaction and the
+exclusive rk lock. It atomically updates intent without changing RPMs, and keeps
+`needs-sync` until sync succeeds. Installed overlay packages cannot be forgotten.
+Missing factory state is reported with the explicit tmpfiles provisioning command.

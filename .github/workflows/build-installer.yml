@@ -37,6 +37,9 @@ jobs:
           grep -Fq 'label: "KRISOS-F45"' installer/iso.yaml
           grep -Fq 'inst.wait_for_disks=0' installer/iso.yaml
           grep -Fq 'inst.noibft' installer/iso.yaml
+          grep -Fq 'selinux=1 enforcing=0' installer/iso.yaml
+          grep -Fq "'selinux --enforcing'" installer/Containerfile
+          ! grep -Eq '(^|[[:space:]])selinux=0([[:space:]]|$)' installer/iso.yaml
           grep -Fq 'bootc-generic-iso' installer/build-installer.sh
           grep -Fq 'ghcr.io/osbuild/image-builder-cli:latest' installer/build-installer.sh
           ! grep -Eq 'bootc --source-imgref=|REGISTRY/IMAGE' installer/Containerfile installer/iso.yaml

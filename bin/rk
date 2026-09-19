@@ -156,14 +156,38 @@ def print_plan(requested, incoming):
     print(f'Install {len(incoming)} package(s)')
 
 
+def load_intent():
+    try:
+        return names((STATE / 'packages.list').read_text().splitlines())
+    except FileNotFoundError as error:
+        raise RuntimeError('KrisOS package state is not initialized; run sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/krisos.conf') from error
+
+
+def forget_requests(requested):
+    """Drop unrecoverable intent without removing installed RPMs or clearing recovery."""
+    guard()
+    if not (STATE / 'needs-sync').exists():
+        raise RuntimeError('forget is only available during recovery; use rk rm normally')
+    owned = owned_names(OWNED.read_text().splitlines())
+    intent = load_intent()
+    if requested - intent:
+        raise RuntimeError('Only saved package requests can be forgotten')
+    check_base(owned)
+    installed = set(output('rpm', '-qa', '--qf', '%{NAME}\n').splitlines())
+    if requested & (installed - owned):
+        raise RuntimeError('Cannot forget an installed overlay package; no requests changed')
+    atomic(STATE / 'packages.list', ''.join(n + '\n' for n in sorted(intent - requested)), mode=0o644)
+    print('Recovery requests updated; no RPMs removed. Run sudo rk sync to finish recovery.')
+
+
 def transact(command, requested, dry_run=False):
     import libdnf5
     owned = owned_names(OWNED.read_text().splitlines())
-    intent = names((STATE / 'packages.list').read_text().splitlines())
+    intent = load_intent()
     if (STATE / 'pending').exists():
         raise RuntimeError('Interrupted transaction requires reboot before rk runs again')
     if command != 'sync' and (STATE / 'needs-sync').exists():
-        raise RuntimeError('Run rk sync before changing package requests')
+        raise RuntimeError('Run rk sync first; if an unavailable request blocks recovery, use sudo rk forget NAME, then sudo rk sync')
     if command == 'add' and requested & owned:
         raise RuntimeError('Already owned by the image: ' + ', '.join(sorted(requested & owned)))
     if command == 'rm' and (requested & owned or requested - intent):
@@ -281,18 +305,19 @@ def show_status():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('add', 'rm', 'sync', 'status', 'plan'))
+    parser.add_argument('command', choices=('add', 'rm', 'sync', 'status', 'plan', 'forget'))
     parser.add_argument('packages', nargs='*')
     args = parser.parse_args()
-    takes_packages = args.command in ('add', 'rm', 'plan')
+    takes_packages = args.command in ('add', 'rm', 'plan', 'forget')
     if bool(args.packages) != takes_packages:
-        parser.error('add/rm/plan require package names; sync/status take no packages')
+        parser.error('add/rm/plan/forget require package names; sync/status take no packages')
     requested = names(args.packages)
     if args.command == 'status':
         show_status()
         return
     if args.command == 'plan':
         guard()
+        load_intent()
         fd = acquire_plan_lock()
         try:
             transact('add', requested, dry_run=True)
@@ -303,9 +328,13 @@ def main():
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo')
     guard()
+    load_intent()
     with (STATE / 'lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        transact(args.command, requested)
+        if args.command == 'forget':
+            forget_requests(requested)
+        else:
+            transact(args.command, requested)
 
 
 if __name__ == '__main__':
