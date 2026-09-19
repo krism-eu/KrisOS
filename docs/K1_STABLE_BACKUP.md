@@ -1,14 +1,15 @@
 # K1.0 stable backup references
 
-The K1 runtime fixes and krisCC 0.5.1-10 are now promoted to `main`.
-The fixed backup baseline therefore advances to the exact signed immutable
-`main` payload below; the mutable `m1` tag is not used as the backup lock.
+The corrected K1 runtime and krisCC 0.6.0-1 are now promoted to `main`.
+The installer must consume this exact signed immutable main payload; the mutable
+`m1` tag is not used as the installer lock.
 
-- KrisOS commit: `35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`
-- KrisOS immutable ref: `ghcr.io/krism-eu/krisos:35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`
-- KrisOS digest: `sha256:8c87cb770273f10e7b4eeabb48b709e54c95b6080473cd3c63ef732aa4145c41`
-- krisCC stable component: `v0.5.1-10`
-- krisCC stable RPM SHA256: `80bd3dc6a488688ed80ca7bb0462837a8fcafe8a1c2dc4849aa0e6bf62de941f`
+- KrisOS commit: `b40417ff49af48d9c693f49e553a0bef3cceb59b`
+- KrisOS immutable ref: `ghcr.io/krism-eu/krisos:b40417ff49af48d9c693f49e553a0bef3cceb59b`
+- KrisOS digest: `sha256:9218df60225d4d6d415c4bcc21de530bd2bd65b97d9045374050ac7addd01579`
+- krisCC stable component: `v0.6.0-1`
+- krisCC stable RPM SHA256: `5cb01133a54e8c715715bc5ec2bb87244ae5b57b5ed9272212b8203900a80298`
 
-This reference is the direct-bootc `main` baseline used for recovery/comparison
-while the installer ISO receives its final physical-machine validation.
+This is the direct-bootc main baseline and the only payload accepted by the
+final K1 installer ISO workflow. Any future runtime change requires a new main
+build, immutable digest and explicit lock update before a new ISO is produced.

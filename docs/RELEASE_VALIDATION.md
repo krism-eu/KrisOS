@@ -2,7 +2,7 @@
 
 KrisOS uses a deliberately small end-to-end release check instead of reproducing a full openQA installation.
 
-The normal release path remains the bootc image from `main`. The fixed backup baseline on `main` still carries krisCC 0.5.1-10; the final K1 candidate validates krisCC 0.6.0-1 on a separate runtime/installer path; the installer branch remains separate only for Anaconda/ISO work. The fixed rollback/backup baseline is the signed immutable main commit `35c76d6a85033203f885e3e4bd6d7dcc6f1784c5`, not the mutable `m1` tag.
+The normal release path is the bootc image from `main`. krisCC 0.6.0-1 and the validated K1 runtime fixes are now promoted to `main`. The final installer branch consumes the exact signed immutable main commit `b40417ff49af48d9c693f49e553a0bef3cceb59b` at digest `sha256:9218df60225d4d6d415c4bcc21de530bd2bd65b97d9045374050ac7addd01579`; it never rebuilds a separate payload and never relies on the mutable `m1` tag.
 
 ## Runtime check
 
@@ -39,7 +39,7 @@ The VM must be disposable and the SSH user must have non-interactive sudo. The h
 
 ## Final K1.0 ISO candidate
 
-The final QA ISO embeds the exact immutable payload built and signed by the same candidate workflow; it does not silently pull the mutable `m1` tag. The artifact bundle also contains the candidate payload lock plus copies of the fixed stable-main backup locks.
+The final QA ISO embeds the exact immutable payload already built, published and signed by the `main` Build M1 workflow. The ISO workflow verifies the locked registry manifest digest and Cosign identity before pulling it, then builds Anaconda from that exact local image. The artifact bundle contains the exact main payload and krisCC locks.
 
 Install manually in Fedora 45 Anaconda. Do not use automatic partition clearing or autopartitioning. The validation layout is:
 
@@ -51,6 +51,6 @@ Install manually in Fedora 45 Anaconda. Do not use automatic partition clearing 
 
 Create the desktop account interactively, enable Anaconda's administrator option so it belongs to `wheel`, do not enable automatic login, and do not bake a password/hash into the image.
 
-After installation, run the bundled `release-check.sh` with the candidate image reference, krisCC EVRA and admin user exported. Then run the reboot sentinel test. Physical QA additionally confirms Plasma login, KWallet behavior, networking, audio/GPU, suspend/resume, rk add/remove/sync/recovery, the krisCC GUI pages, and a recovery boot with `krisos.overlay=off`.
+After installation, run the bundled `release-check.sh` with the locked main image reference, krisCC EVRA and admin user exported. Then run the reboot sentinel test. Physical QA additionally confirms Plasma login, KWallet behavior, networking, audio/GPU, suspend/resume, rk add/remove/sync/recovery, the krisCC GUI pages, and a recovery boot with `krisos.overlay=off`.
 
 The runtime changes are already promoted to `main`. Physical ISO validation now decides only whether the installer branch is ready to be closed/promoted; it does not gate the direct bootc runtime already published from `main`.
