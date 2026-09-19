@@ -6,7 +6,7 @@ This directory contains the minimal installer path for KrisOS.
 
 - Fedora 45 Anaconda runtime, independent from the installed KrisOS payload.
 - `bootc-generic-iso`, not the legacy `anaconda-iso` path.
-- Remote bootc payload selected at install time through Kickstart.
+- Exact validated KrisOS bootc payload embedded in the ISO, while Anaconda storage and user setup remain interactive.
 - No destructive automatic partitioning.
 - Manual ext4 layout with separate `/var/home` supported by Fedora 45 Anaconda.
 - Manual user creation: the intended desktop user must be marked as administrator (wheel); no account credentials or autologin are baked into the image.
@@ -35,7 +35,7 @@ By default the builder image is `ghcr.io/osbuild/image-builder-cli:latest`. It c
 IMAGE_BUILDER_IMAGE=ghcr.io/osbuild/image-builder-cli:TAG bash installer/build-installer.sh
 ```
 
-No KrisOS payload image URL is embedded in the ISO.
+The build pins the exact validated KrisOS payload reference into Anaconda's interactive defaults and embeds that same container in the ISO. This avoids a network dependency during installation while keeping partitioning and user creation manual.
 
 ## GitHub generation
 
@@ -78,23 +78,18 @@ The ISO boot entry currently adds:
 
 This removes Anaconda's extra wait and avoids iBFT probing. We intentionally do **not** disable multipath, mdraid, LVM, USB, device-mapper, or generic block probing yet. Fedora 45 must first be measured on the physical validation machine; only a confirmed slow subsystem should be disabled.
 
-## Remote Kickstart / payload URL
+## Installer interaction contract
 
-To select the image without rebuilding the ISO, boot the ISO, edit the kernel command line, and add a remote Kickstart such as:
+The ISO starts the normal graphical Anaconda flow. It does **not** provide
+`clearpart`, `autopart`, `part`, `user`, `rootpw`, `reboot` or
+`shutdown` directives, and the boot entry does not use `inst.ks=`,
+`inst.cmdline` or `inst.noninteractive`.
 
-```text
-inst.ks=https://host.example/krisos.ks
-```
-
-The remote Kickstart should set both the installation source and the update target:
-
-```text
-bootc --source-imgref=registry:REGISTRY/IMAGE:TAG --target-imgref=REGISTRY/IMAGE:TAG
-```
-
-`--source-imgref` requires the transport prefix (`registry:`). `--target-imgref` deliberately does not use that prefix and becomes the reference used by the installed system for subsequent bootc updates.
-
-This is the V1 mechanism for selecting the bootc URL; no custom Anaconda UI is added.
+Only the bootc payload source/target is preselected. Storage, formatting and
+desktop-user creation remain explicit installer choices. The payload container
+is embedded by Image Builder through `--bootc-installer-payload-ref`; this
+option is used with the recommended `bootc-generic-iso` image type and does
+not select the historical `bootc-installer` image type.
 
 ## Security note
 
