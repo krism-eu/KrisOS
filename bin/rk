@@ -100,6 +100,26 @@ def validate_plan(rows, owned, remove):
             raise RuntimeError(f'Only additive installs and explicitly requested removals are supported: {name} ({action})')
 
 
+def harden_repo(repo):
+    """Preserve the administrator's enabled state while enforcing RPM signatures."""
+    config = repo.get_config()
+    config.pkg_gpgcheck = True
+
+
+def acquire_plan_lock():
+    """Take the shared rk state lock when provisioned; plan stays usable pre-tmpfiles."""
+    try:
+        fd = os.open(STATE / 'lock', os.O_RDONLY)
+    except FileNotFoundError:
+        return None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(fd)
+        raise RuntimeError('Another rk transaction is in progress') from error
+    return fd
+
+
 def validate_payload(path):
     for flag in ('--scripts', '--triggers', '--filetriggers'):
         if output('rpm', '-qp', flag, path):
@@ -182,8 +202,7 @@ def transact(command, requested, dry_run=False):
         sack = base.get_repo_sack()
         sack.create_repos_from_system_configuration()
         for repo in libdnf5.repo.RepoQuery(base):
-            repo.get_config().enabled = repo.get_id() in ('fedora', 'updates')
-            repo.get_config().pkg_gpgcheck = True
+            harden_repo(repo)
         sack.load_repos()
         goal = libdnf5.base.Goal(base)
         for name in sorted(install):
@@ -274,12 +293,12 @@ def main():
         return
     if args.command == 'plan':
         guard()
-        fd = os.open(STATE / 'lock', os.O_RDONLY)
+        fd = acquire_plan_lock()
         try:
-            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
             transact('add', requested, dry_run=True)
         finally:
-            os.close(fd)
+            if fd is not None:
+                os.close(fd)
         return
     if os.geteuid() != 0:
         raise RuntimeError('Run with sudo')
