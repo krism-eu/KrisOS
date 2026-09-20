@@ -1,9 +1,12 @@
-name: Sync krisCC component
+name: Adopt krisCC component
 
 on:
-  schedule:
-    - cron: '17 * * * *'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact krisCC release tag to validate and adopt
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -32,10 +35,11 @@ jobs:
           sudo apt-get install -y rpm
           rpm --version
 
-      - name: Resolve newest published krisCC component
+      - name: Validate selected krisCC component
         id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
@@ -44,26 +48,27 @@ jobs:
           : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
           current_tag="$KRISCC_TAG"
 
-          latest_tag="$(gh release view --repo krism-eu/krisCC --json tagName --jq .tagName)"
-          [[ "$latest_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
-          echo "Current krisCC: $current_tag"
-          echo "Latest published krisCC: $latest_tag"
+          [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
+          echo "Current krisCC:   $current_tag"
+          echo "Requested krisCC: $REQUESTED_TAG"
 
-          newest="$(printf '%s\n%s\n' "$current_tag" "$latest_tag" | sort -V | tail -n1)"
-          if [[ "$newest" != "$latest_tag" ]]; then
-            echo "Published latest release $latest_tag is older than pinned $current_tag; refusing downgrade."
+          newest="$(printf '%s\n%s\n' "$current_tag" "$REQUESTED_TAG" | sort -V | tail -n1)"
+          if [[ "$newest" != "$REQUESTED_TAG" ]]; then
+            echo "Requested release $REQUESTED_TAG is older than pinned $current_tag; refusing downgrade." >&2
+            exit 1
+          fi
+
+          if [[ "$REQUESTED_TAG" == "$current_tag" ]]; then
+            echo "krisCC $REQUESTED_TAG is already pinned."
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [[ "$latest_tag" == "$current_tag" ]]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          gh release view "$REQUESTED_TAG" --repo krism-eu/krisCC >/dev/null
 
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
-          gh release download "$latest_tag" --repo krism-eu/krisCC \
+          gh release download "$REQUESTED_TAG" --repo krism-eu/krisCC \
             -p 'krisCC-*.fc44.x86_64.rpm' -p SHA256SUMS -D "$tmp"
           mapfile -t rpms < <(find "$tmp" -maxdepth 1 -type f -name 'krisCC-*.fc44.x86_64.rpm' -printf '%f\n')
           test "${#rpms[@]}" -eq 1
@@ -76,7 +81,7 @@ jobs:
           rpm_vr_no_dist="${rpm_vr%.fc44}"
           test "$rpm_vr_no_dist" != "$rpm_vr"
           expected_tag="v${rpm_vr_no_dist}"
-          test "$latest_tag" = "$expected_tag"
+          test "$REQUESTED_TAG" = "$expected_tag"
 
           checksum="$(awk -v f="$rpm_file" '$2 == f || $2 == "./" f {print $1}' "$tmp/SHA256SUMS")"
           [[ "$checksum" =~ ^[0-9a-f]{64}$ ]]
@@ -84,13 +89,13 @@ jobs:
           (cd "$tmp" && sha256sum -c SELECTED_SHA256SUM)
 
           cat > build_files/krisCC.lock <<EOF
-          KRISCC_TAG=$latest_tag
+          KRISCC_TAG=$REQUESTED_TAG
           KRISCC_RPM=$rpm_file
           KRISCC_SHA256=$checksum
           EOF
 
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
-          echo "tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           echo "rpm=$rpm_file" >> "$GITHUB_OUTPUT"
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -158,7 +163,7 @@ jobs:
           set -euo pipefail
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA" || {
-            echo 'main moved while validating krisCC; leaving the stable lock untouched and retrying on the next run.' >&2
+            echo 'main moved while validating krisCC; leaving the lock untouched. Run the manual adoption again.' >&2
             exit 1
           }
           git config user.name 'github-actions[bot]'

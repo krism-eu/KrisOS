@@ -50,6 +50,19 @@ The `/var/home` useradd default and SELinux homedir policy are image defaults fo
 
 Installer-specific Anaconda, partitioning and ISO build logic stays on the installer branch. Once a main payload is validated and published, installer validation should embed that exact immutable main payload rather than rebuilding a second OS payload.
 
+## krisCC component adoption
+
+krisCC is not polled on a schedule. Updating the component in KrisOS is an explicit operation:
+
+1. run the **Adopt krisCC component** workflow;
+2. provide the exact release tag, for example `v0.7.0-1`;
+3. the workflow verifies the RPM identity and checksum, builds KrisOS with that exact component and runs the integration checks;
+4. only after validation does it update `build_files/krisCC.lock` and dispatch the normal KrisOS build.
+
+There is no automatic "latest release" lookup. This keeps the KrisOS image reproducible and prevents a newly published krisCC candidate from entering the OS without an explicit decision.
+
+If component adoption is automated in the future, the trigger should be limited to the single official stable krisCC release stream; the validation and immutable lock remain unchanged.
+
 ## Corrective source revision
 
 The SSH harness forwards `KRISOS_EXPECT_ADMIN_USER` and includes release-state.py.
