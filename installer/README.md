@@ -17,7 +17,9 @@ This directory contains the minimal installer path for KrisOS.
 The supported offline build is `.github/workflows/build-k1-final-iso.yml` on
 `k1.0-final-restyle-fixes`. It verifies the payload digest and Cosign identity,
 pulls by digest, assigns the locked target reference locally, and builds the ISO.
-The older build-installer.yml entry is retired.
+The installer branch contains no duplicate KrisOS runtime source; post-install QA
+scripts are extracted from the exact main commit named by
+`build_files/KrisOS-payload.lock`.
 
 For a local build, first reproduce that workflow's signature/digest verification
 and rootful Podman payload import. Then export `KRISOS_PAYLOAD_REF` to the locked

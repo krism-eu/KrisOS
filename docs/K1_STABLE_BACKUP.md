@@ -1,18 +1,17 @@
-# K1.0 stable backup references
+# K1.0 locked main payload
 
-The corrected K1 runtime and krisCC 0.6.0-1 are now promoted to `main`.
-The installer must consume this exact signed immutable main payload; the mutable
-`m1` tag is not used as the installer lock.
+The K1 installer consumes one exact signed KrisOS main image. It does not rebuild
+the OS and it does not use the mutable `m1` tag.
 
-- KrisOS commit: `ccb73fe74faf92d7102fcb24c3526b791ff83590`
-- KrisOS immutable ref: `ghcr.io/krism-eu/krisos:ccb73fe74faf92d7102fcb24c3526b791ff83590`
-- KrisOS digest: `sha256:3419f8d0834cb7f3b99d09444f7e3666a670477d94ae1aebdcad1b59963d2275`
-- krisCC stable component: `v0.6.0-1`
-- krisCC stable RPM SHA256: `5cb01133a54e8c715715bc5ec2bb87244ae5b57b5ed9272212b8203900a80298`
+- KrisOS commit: `6212322d22ccf170562976bef3c288d531f98bb2`
+- Immutable ref: `ghcr.io/krism-eu/krisos:6212322d22ccf170562976bef3c288d531f98bb2`
+- Manifest digest: `sha256:7f1e12e8fbf3b94acb389045dc920d30d998458ca170453a8493810ffdebecff`
+- krisCC in payload: `0.7.0-4.fc44.x86_64`
+- Validated Build M1 run: `35496301045`
 
-This is the direct-bootc main baseline and the only payload accepted by the
-final K1 installer ISO workflow. Any future runtime change requires a new main
-build, immutable digest and explicit lock update before a new ISO is produced.
+That main build passed source invariants, exact krisCC verification, bootc image
+build, real RK package-layer integration, Cosign signing/verification and
+anonymous registry pull verification.
 
-Payload build and Cosign verification: https://github.com/krism-eu/KrisOS/actions/runs/35475017759
-This payload includes guarded rk recovery and corrected release QA. Hardware and installation checks remain separate from container CI.
+Any runtime change requires a new successful main build and a deliberate update
+of `KrisOS-payload.lock` before another ISO is produced.

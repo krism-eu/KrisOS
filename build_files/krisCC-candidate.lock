@@ -1,8 +1,0 @@
-# Compatibility mirror retained on the installer branch.
-# The ISO workflow does NOT consume this file: it consumes the signed main
-# payload pinned in build_files/KrisOS-payload.lock and the stable main
-# component lock in build_files/krisCC.lock.
-KRISCC_TAG=v0.6.0-1
-KRISCC_RPM=krisCC-0.6.0-1.fc44.x86_64.rpm
-KRISCC_SHA256=5cb01133a54e8c715715bc5ec2bb87244ae5b57b5ed9272212b8203900a80298
-KRISCC_COMMIT=8a23e8fb59d01ef11f98ddd623a533a55a0e75ff
