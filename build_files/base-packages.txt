@@ -9,6 +9,7 @@ flatpak
 # Minimal Plasma shell/session + KWin
 plasma-workspace
 plasma-desktop
+milou
 plasma-systemsettings
 kwin
 kscreen
@@ -28,7 +29,9 @@ plasma-pa
 plasma-integration
 kde-cli-tools
 polkit-kde
+p11-kit-server
 powerdevil
+upower
 power-profiles-daemon
 kglobalacceld
 ksystemstats
@@ -105,6 +108,7 @@ cups-filters
 # by the pinned Fedora base (1.81-11.fc44 in the verified build), so do not
 # repeat it here: the base-collision check would reject it.
 iproute
+iputils
 tar
 bash-completion
 ntfs-3g

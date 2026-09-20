@@ -222,26 +222,33 @@ RUN set -eux; \
     rpm -q krisCC; \
     rpm -V krisCC; \
     rm -f /tmp/krisCC.rpm
+COPY scripts/repair-home-labels.sh /usr/libexec/krisos/repair-home-labels
 COPY build_files/krisCC-autostart.desktop /etc/xdg/autostart/krisCC-background.desktop
+
+COPY build_files/99krisos-nss/ /usr/lib/dracut/modules.d/99krisos-nss/
+COPY scripts/check-initramfs-accounts.sh /tmp/check-initramfs-accounts.sh
 
 # Fedora's canonical bootc initramfs must be regenerated after the KrisOS
 # hardware firmware delta is installed. The pinned base initramfs predates the
 # layered amd-ucode-firmware package; without this rebuild the deployed /boot
 # copy can omit AuthenticAMD.bin even though the firmware RPM is installed.
 RUN set -eux; \
+    rpm -q iputils milou upower p11-kit-server; \
     test -f /usr/lib/firmware/amd-ucode/microcode_amd_fam19h.bin; \
     generated=0; \
     for kernel_dir in /usr/lib/modules/*; do \
       test -d "$kernel_dir" || continue; \
       test -f "$kernel_dir/modules.dep" || continue; \
       kver="${kernel_dir##*/}"; \
-      dracut --force --no-hostonly --early-microcode --reproducible --zstd \
+      dracut --force --no-hostonly --early-microcode --reproducible --zstd --add krisos-nss \
         "$kernel_dir/initramfs.img" "$kver"; \
       test -s "$kernel_dir/initramfs.img"; \
       lsinitrd "$kernel_dir/initramfs.img" | grep -F 'kernel/x86/microcode/AuthenticAMD.bin' >/dev/null; \
+      bash /tmp/check-initramfs-accounts.sh "$kernel_dir/initramfs.img"; \
       generated=$((generated + 1)); \
     done; \
-    test "$generated" -ge 1
+    test "$generated" -ge 1; \
+    rm -f /tmp/check-initramfs-accounts.sh
 
 # KrisOS stores persistent user homes under /var/home while /home is the bootc/
 # OSTree compatibility link. Fedora SELinux homedir rules are generated from
