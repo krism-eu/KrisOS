@@ -16,14 +16,20 @@ def check_image(document, expected):
 
 
 def check_rk(text):
-    lines = text.splitlines()
-    for prefix, expected in (
-        ('Overlay:', 'Overlay: ready'),
-        ('Pending recovery:', 'Pending recovery: False'),
-        ('Needs sync:', 'Needs sync: False'),
-    ):
-        if [line for line in lines if line.startswith(prefix)] != [expected]:
-            raise ValueError(f'rk is not ready for release: expected {expected}')
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError('Invalid rk status JSON') from error
+    if data.get('schema') != 1:
+        raise ValueError('Unsupported rk status schema')
+    if data.get('overlay') != 'ready':
+        raise ValueError('RK overlay is not ready')
+    if data.get('pending_recovery') is not False:
+        raise ValueError('RK pending recovery is not clear')
+    if data.get('needs_sync') is not False:
+        raise ValueError('RK needs-sync is not clear')
+    if not isinstance(data.get('requests'), list):
+        raise ValueError('RK requests is not a list')
 
 
 def main():

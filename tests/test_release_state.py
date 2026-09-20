@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import json
 import importlib.machinery
 from pathlib import Path
 import unittest
@@ -18,9 +19,26 @@ class ReleaseState(unittest.TestCase):
                 state.check_image({'status': {'booted': booted, 'staged': deployment('expected'), 'rollback': deployment('expected')}}, 'expected')
 
     def test_rk_requires_complete_healthy_state(self):
-        healthy = 'Overlay: ready\nPending recovery: False\nNeeds sync: False\ntree\n'
-        state.check_rk(healthy)
-        for invalid in ('', healthy.replace('ready', 'degraded'), healthy.replace('Pending recovery: False', 'Pending recovery: True'), healthy.replace('Needs sync: False', 'Needs sync: True'), healthy + 'Needs sync: True\n'):
+        healthy_data = {
+            'schema': 1,
+            'overlay': 'ready',
+            'mount': '42 overlay rw',
+            'overlay_error': '',
+            'pending_recovery': False,
+            'needs_sync': False,
+            'requests': ['tree'],
+        }
+        state.check_rk(json.dumps(healthy_data))
+
+        invalid_values = [
+            '',
+            json.dumps({**healthy_data, 'schema': 2}),
+            json.dumps({**healthy_data, 'overlay': 'degraded'}),
+            json.dumps({**healthy_data, 'pending_recovery': True}),
+            json.dumps({**healthy_data, 'needs_sync': True}),
+            json.dumps({key: value for key, value in healthy_data.items() if key != 'requests'}),
+        ]
+        for invalid in invalid_values:
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 state.check_rk(invalid)
 

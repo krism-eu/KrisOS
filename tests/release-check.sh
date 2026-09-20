@@ -106,7 +106,7 @@ fi
 run_check "krisos-sync timer enabled" bash -c 'systemctl is-enabled krisos-sync.timer | grep -qx enabled'
 run_check "krisos-sync timer active" bash -c 'systemctl is-active krisos-sync.timer | grep -qx active'
 
-if /usr/bin/rk status >"$rk_file" 2>&1 && python3 "$script_dir/release-state.py" rk "$rk_file"; then
+if /usr/bin/rk status --json >"$rk_file" 2>&1 && python3 "$script_dir/release-state.py" rk "$rk_file"; then
     pass "rk overlay ready and recovery complete"
 else
     cat "$rk_file" >&2 || true

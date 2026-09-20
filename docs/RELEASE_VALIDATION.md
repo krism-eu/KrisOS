@@ -13,7 +13,7 @@ The normal release path is the bootc image from `main`. The ISO is a secondary i
 - krisCC is installed, verifies cleanly and matches the immutable owned-package snapshots;
 - the expected krisCC EVRA is present when `KRISOS_EXPECT_KRISCC` is set;
 - `krisos-sync.timer` is enabled and active;
-- `rk status` reports a ready overlay with neither pending recovery nor needs-sync;
+- `rk status --json` reports a ready overlay with neither pending recovery nor needs-sync;
 - krisCC passes the same offscreen runtime smoke used by CI;
 - the image-level useradd default is `HOME=/var/home` and SELinux resolves user/config/data paths below `/var/home`;
 - the canonical initramfs contains AMD early microcode (`AuthenticAMD.bin`);
