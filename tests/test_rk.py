@@ -3,6 +3,7 @@
 from contextlib import redirect_stdout
 import importlib.machinery
 import io
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -151,6 +152,17 @@ class Policy(unittest.TestCase):
             self.assertIn('Pending recovery: True', text)
             self.assertIn('Needs sync: True', text)
             self.assertIn('tree', text)
+
+            json_stream = io.StringIO()
+            with redirect_stdout(json_stream):
+                rk.show_status(json_output=True)
+            payload = json.loads(json_stream.getvalue())
+            self.assertEqual(payload['schema'], 1)
+            self.assertEqual(payload['overlay'], 'ready')
+            self.assertTrue(payload['pending_recovery'])
+            self.assertTrue(payload['needs_sync'])
+            self.assertEqual(payload['requests'], ['tree'])
+
 
 
 if __name__ == '__main__':

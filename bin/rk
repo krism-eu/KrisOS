@@ -2,6 +2,7 @@
 """Additive Fedora RPM transactions on the KrisOS persistent overlay."""
 import argparse
 import fcntl
+import json
 import os
 from pathlib import Path
 import re
@@ -288,32 +289,62 @@ def transact(command, requested, dry_run=False):
             base.unlock_system_repo()
 
 
-def show_status():
+def status_payload():
+    payload = {
+        'schema': 1,
+        'overlay': 'degraded',
+        'mount': '',
+        'overlay_error': '',
+        'pending_recovery': (STATE / 'pending').exists(),
+        'needs_sync': (STATE / 'needs-sync').exists(),
+        'requests': [],
+    }
     try:
-        mount = guard(allow_pending=True)
-        print('Overlay: ready')
-        print('Mount:', mount)
+        payload['mount'] = guard(allow_pending=True)
+        payload['overlay'] = 'ready'
     except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
-        print('Overlay: degraded')
-        print('Overlay error:', error)
-    print('Pending recovery:', (STATE / 'pending').exists())
-    print('Needs sync:', (STATE / 'needs-sync').exists())
+        payload['overlay_error'] = str(error)
+
     package_file = STATE / 'packages.list'
     if package_file.exists():
-        print(package_file.read_text(), end='')
+        payload['requests'] = [
+            line.strip() for line in package_file.read_text().splitlines()
+            if line.strip()
+        ]
+    return payload
+
+
+def show_status(json_output=False):
+    payload = status_payload()
+    if json_output:
+        print(json.dumps(payload, separators=(',', ':'), sort_keys=True))
+        return
+
+    print('Overlay:', payload['overlay'])
+    if payload['mount']:
+        print('Mount:', payload['mount'])
+    if payload['overlay_error']:
+        print('Overlay error:', payload['overlay_error'])
+    print('Pending recovery:', payload['pending_recovery'])
+    print('Needs sync:', payload['needs_sync'])
+    for package in payload['requests']:
+        print(package)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('add', 'rm', 'sync', 'status', 'plan', 'forget'))
     parser.add_argument('packages', nargs='*')
+    parser.add_argument('--json', action='store_true', help='emit versioned JSON for status')
     args = parser.parse_args()
+    if args.json and args.command != 'status':
+        parser.error('--json is only valid with status')
     takes_packages = args.command in ('add', 'rm', 'plan', 'forget')
     if bool(args.packages) != takes_packages:
         parser.error('add/rm/plan/forget require package names; sync/status take no packages')
     requested = names(args.packages)
     if args.command == 'status':
-        show_status()
+        show_status(json_output=args.json)
         return
     if args.command == 'plan':
         guard()

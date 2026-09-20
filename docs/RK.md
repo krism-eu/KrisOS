@@ -7,11 +7,18 @@ Commands in the Fedora guest:
 
 ```bash
 rk status
+rk status --json
 rk plan tree
 sudo rk add tree
 sudo rk rm tree
 sudo rk sync
 ```
+
+`rk status --json` is the machine-readable status contract used by krisCC. It emits
+a single JSON object with `schema: 1`, `overlay`, `mount`, `overlay_error`,
+`pending_recovery`, `needs_sync` and `requests`. The human `rk status`
+output remains available for terminal diagnostics; consumers must use the
+versioned JSON form instead of parsing presentation text.
 
 `rk plan <name>` is read-only and is intended for krisCC transaction previews.
 It uses the same libdnf5 solver configuration, enabled repositories, immutable
