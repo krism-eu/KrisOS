@@ -31,7 +31,7 @@ Example:
 export KRISOS_E2E_TARGET=qa@192.0.2.10
 export KRISOS_E2E_SWITCH_IMAGE=ghcr.io/krism-eu/krisos:<immutable-commit>
 export KRISOS_EXPECT_IMAGE="$KRISOS_E2E_SWITCH_IMAGE"
-export KRISOS_EXPECT_KRISCC=0.5.1-10.fc44.x86_64
+export KRISOS_EXPECT_KRISCC=<version-release.fc44.x86_64>
 tests/run-release-vm.sh
 ```
 
@@ -55,7 +55,7 @@ Installer-specific Anaconda, partitioning and ISO build logic stays on the insta
 krisCC is not polled on a schedule. Updating the component in KrisOS is an explicit operation:
 
 1. run the **Adopt krisCC component** workflow;
-2. provide the exact release tag, for example `v0.7.0-1`;
+2. provide the exact validated release tag, for example `v0.7.0-4`;
 3. the workflow verifies the RPM identity and checksum, builds KrisOS with that exact component and runs the integration checks;
 4. only after validation does it update `build_files/krisCC.lock` and dispatch the normal KrisOS build.
 

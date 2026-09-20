@@ -96,9 +96,10 @@ class Policy(unittest.TestCase):
         rk.validate_plan([('tree', 'x86_64', 'Remove')], {'glibc'}, {'tree'})
 
     def test_no_cli_escape_hatches(self):
-        for name in ('--disableexcludes=all', '/tmp/a.rpm', 'https://example/a.rpm', 'a.i686', 'a*', '@group'):
+        for name in ('--disableexcludes=all', '/tmp/a.rpm', 'https://example/a.rpm', 'a.i686', 'a*', '@group', 'a' * 129):
             with self.subTest(name=name), self.assertRaises(RuntimeError):
                 rk.names([name])
+        self.assertEqual(rk.names(['a' * 128]), {'a' * 128})
 
     def test_owned_names_are_not_revalidated_as_cli_input(self):
         self.assertEqual(rk.owned_names(['ordinary', 'future.x86_64']), {'ordinary', 'future.x86_64'})
@@ -163,6 +164,15 @@ class Policy(unittest.TestCase):
             self.assertTrue(payload['needs_sync'])
             self.assertEqual(payload['requests'], ['tree'])
 
+
+    def test_status_rejects_corrupted_package_intent(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)), \
+                mock.patch.object(rk, 'output', side_effect=guard_output):
+            state = Path(directory)
+            (state / 'packages.list').write_text('tree\nbad name\n')
+            with self.assertRaisesRegex(RuntimeError, 'Use an exact package name'):
+                rk.status_payload()
 
 
 if __name__ == '__main__':

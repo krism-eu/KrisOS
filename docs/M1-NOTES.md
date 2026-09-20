@@ -1,5 +1,7 @@
 # M1 notes — contratto del package layer
 
+**Stato:** implementato. Questo documento conserva i vincoli tecnici della linea M1.
+
 M1 aggiunge il comando `rk` sopra DNF5. Il principio resta semplice:
 `packages.list` contiene solo le richieste esplicite dell'utente e l'overlay
 `/usr` è cache ricostruibile.
@@ -11,7 +13,7 @@ appartenenti all'immagine finale: base Fedora pinned più delta KrisOS.
 Le pseudo-entry `gpg-pubkey` sono escluse; repository e chiavi sono una policy
 separata.
 
-M1 deve impedire alle transazioni utente di aggiornare, fare downgrade,
+M1 impedisce alle transazioni utente di aggiornare, fare downgrade,
 rimuovere, obsoletare o sostituire semanticamente pacchetti owned. Il wrapper
 usa DNF/RPM reali; non introduce una seconda rpmdb.
 
@@ -35,15 +37,15 @@ valida.
 I timer `dnf-makecache.timer` e `dnf5-makecache.timer` sono mascherati.
 KrisOS non mantiene i metadata DNF aggiornati in background.
 
-Il refresh è esplicito e on-demand: una futura operazione `rk` può richiederlo
-quando serve, oppure l'utente può richiederlo direttamente. Non esiste un timer
+Il refresh è esplicito e on-demand durante le operazioni `rk` che caricano i
+repository; non esiste un refresh periodico separato. Non esiste un timer
 periodico nascosto.
 
 ## Transazioni M1
 
-`rk add` e `rk rm` devono usare vere transazioni DNF/RPM. La modalità DNF5 per
-un `/usr` già writable deve essere scelta esplicitamente dal wrapper; non si
-affida al default `auto` e non deve creare un secondo overlay concorrente.
+`rk add` e `rk rm` usano vere transazioni DNF/RPM. La modalità DNF5 per
+un `/usr` già writable è scelta esplicitamente dal wrapper; non si
+affida al default `auto` e non crea un secondo overlay concorrente.
 
 `rk rm` aggiorna `packages.list` solo dopo una transazione riuscita. Non viene
 implementato un dependency graph o un autoremove proprietario: le dipendenze
@@ -56,9 +58,9 @@ nuovo le dipendenze.
 ## Stato fuori da `/usr`
 
 Un RPM può dichiarare file sotto `/etc` o `/var` e gli scriptlet possono
-modificare stato persistente. L'overlay copre solo `/usr`, quindi M1 deve essere
-conservativo: inizialmente può rifiutare pacchetti con effetti persistenti non
-gestibili, invece di promettere cleanup che non può garantire.
+modificare stato persistente. L'overlay copre solo `/usr`, quindi M1 resta conservativo: rifiuta pacchetti
+con payload o scriptlet non supportati invece di promettere cleanup che non può
+garantire.
 
 I file di stato propri di KrisOS sotto `/var/lib/krisos` possono essere
 sottoposti a relabel mirato. Non si esegue mai un relabel ricorsivo di

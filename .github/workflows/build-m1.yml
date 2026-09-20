@@ -87,6 +87,8 @@ jobs:
           grep -Fxq '[UserFeedback]' build_files/KDE-UserFeedback.conf
           grep -Fxq 'Enabled=false' build_files/KDE-UserFeedback.conf
           grep -Fxq 'Exec=/usr/bin/krisCC --background' build_files/krisCC-autostart.desktop
+          grep -Fq "payload['requests'] = sorted(names(package_file.read_text().splitlines()))" bin/rk
+          grep -Fq "re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+_.-]{0,127}'" bin/rk
           grep -Fq 'state=/var/lib/krisos' systemd/krisos-overlay.sh
           grep -Fq 'After=ostree-remount.service' systemd/krisos-overlay.service
           grep -Fq 'Before=local-fs.target shutdown.target' systemd/krisos-overlay.service
@@ -108,6 +110,9 @@ jobs:
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
+          test ! -e installer
+          test ! -e kickstart/krisos.ks
+          test ! -e .github/workflows/build-installer.yml
 
       - name: Fetch verified krisCC component
         shell: bash
@@ -155,6 +160,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source build_files/krisCC.lock
+          expected_kriscc="${KRISCC_TAG#v}.fc44.x86_64"
           sudo podman inspect localhost/krisos:m1 --format '{{.Id}}'
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
@@ -162,8 +169,8 @@ jobs:
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.title" }}')" = "krisos"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/krism-eu/KrisOS"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
-          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:m1 -lc '
-            rpm -q krisCC &&
+          sudo podman run --rm -e KRISCC_EXPECTED="$expected_kriscc" --entrypoint /bin/bash localhost/krisos:m1 -lc '
+            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "$KRISCC_EXPECTED" &&
             rpm -V krisCC &&
             test -x /usr/bin/krisCC &&
             grep -Fxq "HOME=/var/home" /etc/default/useradd &&

@@ -134,9 +134,9 @@ La policy già congelata per M1 è:
 - dopo cambio deployment, reinstallazione delle sole richieste esplicite;
 - `rk rm` usa una vera transazione DNF/RPM, senza pseudo-autoremove.
 
-Restano da implementare nel wrapper la protezione transazionale additive-only e
-la gestione esplicita degli effetti RPM fuori da `/usr`; sono dettagli M1, non
-ragioni per complicare M0.
+Il wrapper implementa la protezione transazionale additive-only e rifiuta
+payload con effetti non supportati fuori da `/usr`; la policy resta
+intenzionalmente conservativa invece di promettere compatibilità RPM generica.
 
 ## Milestone
 

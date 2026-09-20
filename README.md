@@ -80,7 +80,7 @@ invece ricreata vuota e viene armato `needs-sync` per M1.
     └── boot-check.sh
 ```
 
-Package-layer implementation candidate: see [rk commands and limits](docs/RK.md).
+Package-layer implementation and limits: see [rk commands and limits](docs/RK.md).
 
 `/usr/share/krisos/owned-packages.txt` contiene tutti i pacchetti
 dell'immagine finale (base Fedora + delta KrisOS). `rk` usa questa lista

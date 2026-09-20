@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
-      - name: Checkout stable KrisOS source
+      - name: Checkout KrisOS main source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: main
@@ -133,11 +133,14 @@ jobs:
 
       - name: Validate candidate integration
         if: steps.candidate.outputs.changed == 'true'
+        env:
+          KRISCC_TAG: ${{ steps.candidate.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          sudo podman run --rm --entrypoint /bin/bash localhost/krisos:kriscc-candidate -lc '
-            rpm -q krisCC &&
+          expected_kriscc="${KRISCC_TAG#v}.fc44.x86_64"
+          sudo podman run --rm -e KRISCC_EXPECTED="$expected_kriscc" --entrypoint /bin/bash localhost/krisos:kriscc-candidate -lc '
+            test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "$KRISCC_EXPECTED" &&
             rpm -V krisCC &&
             test -x /usr/bin/krisCC &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
