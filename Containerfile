@@ -88,6 +88,8 @@ RUN set -eux; \
     done < /tmp/fedora-base-names.txt; \
     LC_ALL=C sort -u -o \
       /tmp/fedora-base-nevra.before /tmp/fedora-base-nevra.before; \
+    dnf_plugins_vra="$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' libdnf5-cli)"; \
+    sed -i "s/^dnf5-plugins$/dnf5-plugins-${dnf_plugins_vra}/" /tmp/krisos-delta-names.txt; \
     base_excludes="$(paste -sd, /tmp/fedora-base-names.txt)"; \
     xargs -r dnf5 -y \
       --setopt=install_weak_deps=False \
@@ -233,7 +235,7 @@ COPY scripts/check-initramfs-accounts.sh /tmp/check-initramfs-accounts.sh
 # layered amd-ucode-firmware package; without this rebuild the deployed /boot
 # copy can omit AuthenticAMD.bin even though the firmware RPM is installed.
 RUN set -eux; \
-    rpm -q iputils milou upower p11-kit-server; \
+    rpm -q iputils plasma-milou upower p11-kit-server; \
     test -f /usr/lib/firmware/amd-ucode/microcode_amd_fam19h.bin; \
     generated=0; \
     for kernel_dir in /usr/lib/modules/*; do \

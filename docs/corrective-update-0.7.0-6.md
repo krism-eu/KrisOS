@@ -10,7 +10,7 @@ before the image can be published. Desktop acceptance remains a host check.
 
 - krisCC: real procfs RAM sampling, lazy creation of pages, consistent native
   Kirigami presentation, quick user-only trash action with confirmation.
-- Explicit desktop components: milou (Overview), upower, p11-kit-server, iputils.
+- Explicit desktop components: plasma-milou (Overview), upower, p11-kit-server, iputils.
 - Minimal initrd NSS configuration and immutable account databases. Build-time
   chroot checks resolve the accounts previously missing in tmpfiles/udev logs.
 - Pinned Node 24 GitHub Actions.
@@ -38,7 +38,7 @@ matches and check for new AVCs and Plasma Login log creation.
 ## Acceptance after switching
 
 Record the booted image digest and installed krisCC NEVRA. Inspect the new boot
-journal for unknown initrd users/groups, milou load errors, missing UPower or
+journal for unknown initrd users/groups, plasma-milou load errors, missing UPower or
 p11-kit server, and QML errors. Navigate all CC pages and internal tabs, resize
 the window, verify live RAM and quick trash confirmation without deleting data.
 Check Background activation, audio after display sleep, and startup resource

@@ -9,7 +9,7 @@ flatpak
 # Minimal Plasma shell/session + KWin
 plasma-workspace
 plasma-desktop
-milou
+plasma-milou
 plasma-systemsettings
 kwin
 kscreen
