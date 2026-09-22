@@ -20,11 +20,11 @@ source "$lock"
 : "${KRISCC_RPM:?KRISCC_RPM missing from lock}"
 : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
 
-if [[ ! "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; then
+if [[ ! "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Invalid KRISCC_TAG: $KRISCC_TAG" >&2
   exit 1
 fi
-if [[ ! "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]; then
+if [[ ! "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-1\.fc44\.x86_64\.rpm$ ]]; then
   echo "Invalid KRISCC_RPM: $KRISCC_RPM" >&2
   exit 1
 fi
@@ -66,12 +66,11 @@ if [[ "$checksum" != "$KRISCC_SHA256" ]]; then
 fi
 
 rpm_name="$(rpm -qp --qf '%{NAME}' "$KRISCC_RPM")"
-rpm_vr="$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$KRISCC_RPM")"
+rpm_version="$(rpm -qp --qf '%{VERSION}' "$KRISCC_RPM")"
+rpm_release="$(rpm -qp --qf '%{RELEASE}' "$KRISCC_RPM")"
 [[ "$rpm_name" == "krisCC" ]]
-expected_vr="${KRISCC_TAG#v}"
-version="${expected_vr%-*}"
-release="${expected_vr##*-}.fc44"
-[[ "$rpm_vr" == "$version-$release" ]]
+[[ "$rpm_version" == "${KRISCC_TAG#v}" ]]
+[[ "$rpm_release" == "1.fc44" ]]
 
 cp "$KRISCC_RPM" "$out/krisCC.rpm"
 cp SHA256SUMS "$out/SHA256SUMS"
