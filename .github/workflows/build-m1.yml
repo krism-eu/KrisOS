@@ -182,10 +182,10 @@ jobs:
           set -euo pipefail
           source build_files/krisCC.lock
           expected_kriscc="${KRISCC_TAG#v}.fc44.x86_64"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels \"containers.bootc\" }}')" = "1"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels \"ostree.bootable\" }}')" = "1"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels \"org.opencontainers.image.version\" }}')" = "0.1.0-m1"
-          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}')" = "${GITHUB_SHA}"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
+          test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "${GITHUB_SHA}"
           sudo podman run --rm -e KRISCC_EXPECTED="$expected_kriscc" --entrypoint /bin/bash localhost/krisos:m1 -lc '
             test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "$KRISCC_EXPECTED" &&
             rpm -V krisCC &&
