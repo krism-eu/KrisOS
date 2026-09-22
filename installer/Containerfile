@@ -51,6 +51,14 @@ RUN test -n "$KRISOS_PAYLOAD_REF" && \
     ! grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' \
       /usr/share/anaconda/interactive-defaults.ks
 
+# Installer-only finalization. Keep the live/target SELinux mode and interactive
+# partitioning flow unchanged; only reconcile the two host-specific states that
+# were proven during acceptance: bootc's fstab marker and, conditionally, the
+# four fresh-home SELinux labels through the payload's conservative helper.
+RUN install -d -m 0755 /usr/share/anaconda/post-scripts
+COPY krisos-fstab-finalize.ks /usr/share/anaconda/post-scripts/krisos-fstab-finalize.ks
+COPY krisos-home-labels-finalize.ks /usr/share/anaconda/post-scripts/krisos-home-labels-finalize.ks
+
 # bootc-generic-iso does not run Lorax for us. These are the upstream-required
 # live-Anaconda runtime preparations; without them the ISO can build cleanly
 # but fail after boot with Anaconda's fatal error screen.
