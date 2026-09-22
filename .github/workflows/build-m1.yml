@@ -62,7 +62,7 @@ jobs:
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
           source build_files/krisCC.lock
           : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
-          [[ "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
+          [[ "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]
           [[ "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
           [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]
           grep -Fxq nano build_files/base-packages.txt
@@ -93,12 +93,14 @@ jobs:
           grep -Fxq 'countme=false' build_files/90-krisos-privacy.repo
           grep -Fxq '[UserFeedback]' build_files/KDE-UserFeedback.conf
           grep -Fxq 'Enabled=false' build_files/KDE-UserFeedback.conf
-          grep -Fq "payload['requests'] = sorted(names(package_file.read_text().splitlines()))" bin/rk
+          grep -Fq "payload['requests'] = sorted(persisted_names(package_file.read_text()))" bin/rk
           grep -Fq "re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+_.-]{0,127}'" bin/rk
           grep -Fq 'state=/var/lib/krisos' systemd/krisos-overlay.sh
           grep -Fq 'After=ostree-remount.service' systemd/krisos-overlay.service
           grep -Fq 'Before=local-fs.target shutdown.target' systemd/krisos-overlay.service
           grep -Fq 'TimeoutStartSec=10min' systemd/krisos-overlay.service
+          grep -Fq 'Wants=network-online.target' systemd/krisos-sync.service
+          grep -Fq 'After=multi-user.target krisos-overlay.service network-online.target' systemd/krisos-sync.service
           grep -Fq 'ExecStart=/usr/bin/rk sync' systemd/krisos-sync.service
           grep -Fq 'ConditionPathExists=/var/lib/krisos/needs-sync' systemd/krisos-sync.service
           grep -Fq 'ConditionPathExists=/run/krisos/overlay-mounted' systemd/krisos-sync.service
@@ -181,7 +183,11 @@ jobs:
         run: |
           set -euo pipefail
           source build_files/krisCC.lock
-          expected_kriscc="${KRISCC_TAG#v}.fc44.x86_64"
+          if [[ "$KRISCC_TAG" =~ - ]]; then
+            expected_kriscc="${KRISCC_TAG#v}.fc44.x86_64"
+          else
+            expected_kriscc="${KRISCC_TAG#v}-1.fc44.x86_64"
+          fi
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "containers.bootc" }}')" = "1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "ostree.bootable" }}')" = "1"
           test "$(sudo podman inspect localhost/krisos:m1 --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "0.1.0-m1"
