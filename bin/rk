@@ -34,7 +34,7 @@ def names(values):
 
 def persisted_names(text):
     """Validate persisted package intent while tolerating blank lines only."""
-    return names(line for line in text.splitlines() if line.strip())
+    return names([line for line in text.splitlines() if line.strip()])
 
 
 def owned_names(values):
