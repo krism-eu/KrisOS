@@ -32,6 +32,11 @@ def names(values):
     return set(values)
 
 
+def persisted_names(text):
+    """Validate persisted package intent while tolerating blank lines only."""
+    return names(line for line in text.splitlines() if line.strip())
+
+
 def owned_names(values):
     """Load image-generated RPM names without applying the CLI grammar policy."""
     result = set()
@@ -159,7 +164,7 @@ def print_plan(requested, incoming):
 
 def load_intent():
     try:
-        return names((STATE / 'packages.list').read_text().splitlines())
+        return persisted_names((STATE / 'packages.list').read_text())
     except FileNotFoundError as error:
         raise RuntimeError('KrisOS package state is not initialized; run sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/krisos.conf') from error
 
@@ -307,7 +312,7 @@ def status_payload():
 
     package_file = STATE / 'packages.list'
     if package_file.exists():
-        payload['requests'] = sorted(names(package_file.read_text().splitlines()))
+        payload['requests'] = sorted(persisted_names(package_file.read_text()))
     return payload
 
 
