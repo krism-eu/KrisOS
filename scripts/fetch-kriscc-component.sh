@@ -20,12 +20,23 @@ source "$lock"
 : "${KRISCC_RPM:?KRISCC_RPM missing from lock}"
 : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
 
-if [[ ! "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+# Accept the current legacy candidate tag (vX.Y.Z-N) and the public stable
+# contract (vX.Y.Z). In both cases derive the exact RPM NEVRA from the tag
+# instead of weakening filename or package-metadata validation.
+if [[ "$KRISCC_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+  expected_version="${BASH_REMATCH[1]}"
+  expected_release="1.fc44"
+elif [[ "$KRISCC_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+  expected_version="${BASH_REMATCH[1]}"
+  expected_release="${BASH_REMATCH[2]}.fc44"
+else
   echo "Invalid KRISCC_TAG: $KRISCC_TAG" >&2
   exit 1
 fi
-if [[ ! "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-1\.fc44\.x86_64\.rpm$ ]]; then
-  echo "Invalid KRISCC_RPM: $KRISCC_RPM" >&2
+
+expected_rpm="krisCC-${expected_version}-${expected_release}.x86_64.rpm"
+if [[ "$KRISCC_RPM" != "$expected_rpm" ]]; then
+  echo "Invalid KRISCC_RPM: $KRISCC_RPM (expected $expected_rpm for $KRISCC_TAG)" >&2
   exit 1
 fi
 if [[ ! "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
@@ -68,9 +79,11 @@ fi
 rpm_name="$(rpm -qp --qf '%{NAME}' "$KRISCC_RPM")"
 rpm_version="$(rpm -qp --qf '%{VERSION}' "$KRISCC_RPM")"
 rpm_release="$(rpm -qp --qf '%{RELEASE}' "$KRISCC_RPM")"
+rpm_arch="$(rpm -qp --qf '%{ARCH}' "$KRISCC_RPM")"
 [[ "$rpm_name" == "krisCC" ]]
-[[ "$rpm_version" == "${KRISCC_TAG#v}" ]]
-[[ "$rpm_release" == "1.fc44" ]]
+[[ "$rpm_version" == "$expected_version" ]]
+[[ "$rpm_release" == "$expected_release" ]]
+[[ "$rpm_arch" == "x86_64" ]]
 
 cp "$KRISCC_RPM" "$out/krisCC.rpm"
 cp SHA256SUMS "$out/SHA256SUMS"
