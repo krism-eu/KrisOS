@@ -164,6 +164,15 @@ class Policy(unittest.TestCase):
             self.assertTrue(payload['needs_sync'])
             self.assertEqual(payload['requests'], ['tree'])
 
+    def test_status_ignores_blank_package_lines(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(rk, 'STATE', Path(directory)), \
+                mock.patch.object(rk, 'output', side_effect=guard_output):
+            state = Path(directory)
+            (state / 'packages.list').write_text('tree\n\n   \nnano\n')
+            payload = rk.status_payload()
+            self.assertEqual(payload['requests'], ['nano', 'tree'])
+            self.assertEqual(rk.load_intent(), {'nano', 'tree'})
 
     def test_status_rejects_corrupted_package_intent(self):
         with tempfile.TemporaryDirectory() as directory, \
