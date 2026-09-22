@@ -48,12 +48,15 @@ jobs:
           : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
           current_tag="$KRISCC_TAG"
 
-          [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
+          [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "Current krisCC:   $current_tag"
           echo "Requested krisCC: $REQUESTED_TAG"
 
-          newest="$(printf '%s\n%s\n' "$current_tag" "$REQUESTED_TAG" | sort -V | tail -n1)"
-          if [[ "$newest" != "$REQUESTED_TAG" ]]; then
+          current_version="${current_tag#v}"
+          current_version="${current_version%-*}"
+          requested_version="${REQUESTED_TAG#v}"
+          newest="$(printf '%s\n%s\n' "$current_version" "$requested_version" | sort -V | tail -n1)"
+          if [[ "$newest" != "$requested_version" ]]; then
             echo "Requested release $REQUESTED_TAG is older than pinned $current_tag; refusing downgrade." >&2
             exit 1
           fi
@@ -73,14 +76,14 @@ jobs:
           mapfile -t rpms < <(find "$tmp" -maxdepth 1 -type f -name 'krisCC-*.fc44.x86_64.rpm' -printf '%f\n')
           test "${#rpms[@]}" -eq 1
           rpm_file="${rpms[0]}"
-          [[ "$rpm_file" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
+          [[ "$rpm_file" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-1\.fc44\.x86_64\.rpm$ ]]
 
           test "$(rpm -qp --qf '%{NAME}\n' "$tmp/$rpm_file")" = 'krisCC'
           test "$(rpm -qp --qf '%{ARCH}\n' "$tmp/$rpm_file")" = 'x86_64'
-          rpm_vr="$(rpm -qp --qf '%{VERSION}-%{RELEASE}\n' "$tmp/$rpm_file")"
-          rpm_vr_no_dist="${rpm_vr%.fc44}"
-          test "$rpm_vr_no_dist" != "$rpm_vr"
-          expected_tag="v${rpm_vr_no_dist}"
+          rpm_version="$(rpm -qp --qf '%{VERSION}\n' "$tmp/$rpm_file")"
+          rpm_release="$(rpm -qp --qf '%{RELEASE}\n' "$tmp/$rpm_file")"
+          test "$rpm_release" = '1.fc44'
+          expected_tag="v${rpm_version}"
           test "$REQUESTED_TAG" = "$expected_tag"
 
           checksum="$(awk -v f="$rpm_file" '$2 == f || $2 == "./" f {print $1}' "$tmp/SHA256SUMS")"
@@ -138,7 +141,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_kriscc="${KRISCC_TAG#v}.fc44.x86_64"
+          expected_kriscc="${KRISCC_TAG#v}-1.fc44.x86_64"
           sudo podman run --rm -e KRISCC_EXPECTED="$expected_kriscc" --entrypoint /bin/bash localhost/krisos:kriscc-candidate -lc '
             test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "$KRISCC_EXPECTED" &&
             rpm -V krisCC &&
