@@ -1,0 +1,74 @@
+name: Promote exact digest to M1
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Accepted immutable KrisOS commit SHA"
+        required: true
+        type: string
+      digest:
+        description: "Accepted OCI digest (sha256:...)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate requested identity
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          DIGEST: ${{ inputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+      - name: Install transport and signature tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.0.6'
+
+      - name: Login to GHCR
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/.docker"
+          printf '%s' "$GHCR_TOKEN" | skopeo login --authfile "$HOME/.docker/config.json" \
+            ghcr.io --username "$GHCR_USER" --password-stdin
+
+      - name: Verify accepted immutable candidate
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          DIGEST: ${{ inputs.digest }}
+        run: |
+          set -euo pipefail
+          immutable="ghcr.io/krism-eu/krisos:${COMMIT_SHA}"
+          actual="$(skopeo inspect --authfile "$HOME/.docker/config.json" --format '{{.Digest}}' "docker://$immutable")"
+          test "$actual" = "$DIGEST"
+          cosign verify \
+            --certificate-identity 'https://github.com/krism-eu/KrisOS/.github/workflows/build-m1.yml@refs/heads/main' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            "ghcr.io/krism-eu/krisos@${DIGEST}"
+
+      - name: Promote exact digest without rebuild
+        env:
+          DIGEST: ${{ inputs.digest }}
+        run: |
+          set -euo pipefail
+          source="docker://ghcr.io/krism-eu/krisos@${DIGEST}"
+          target="docker://ghcr.io/krism-eu/krisos:m1"
+          skopeo copy --all --authfile "$HOME/.docker/config.json" "$source" "$target"
+          promoted="$(skopeo inspect --authfile "$HOME/.docker/config.json" --format '{{.Digest}}' "$target")"
+          test "$promoted" = "$DIGEST"
+          printf 'Promoted exact accepted digest: %s\n' "$DIGEST"
