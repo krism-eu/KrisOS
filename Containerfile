@@ -137,6 +137,7 @@ RUN set -eux; \
       konsole \
       kate \
       spectacle \
+      kolourpaint \
       ark \
       isoimagewriter \
       okular \
@@ -366,6 +367,7 @@ RUN set -eux; \
     test -x /usr/bin/konsole; \
     test -x /usr/bin/kate; \
     test -x /usr/bin/spectacle; \
+    test -x /usr/bin/kolourpaint; \
     test -x /usr/bin/ark; \
     test -x /usr/bin/isoimagewriter; \
     test -x /usr/bin/okular; \

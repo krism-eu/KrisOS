@@ -65,6 +65,10 @@ run_check "krisCC installed" rpm -q krisCC
 run_check "krisCC files verify" rpm -V --nomtime krisCC
 run_check "krisCC executable" test -x /usr/bin/krisCC
 run_check "krisCC owned by immutable image" grep -Fxq krisCC /usr/share/krisos/owned-packages.txt
+run_check "Spectacle installed" rpm -q spectacle
+run_check "Spectacle executable" test -x /usr/bin/spectacle
+run_check "KolourPaint installed" rpm -q kolourpaint
+run_check "KolourPaint executable" test -x /usr/bin/kolourpaint
 run_check "ISO Image Writer installed" rpm -q isoimagewriter
 run_check "ISO Image Writer executable" test -x /usr/bin/isoimagewriter
 run_check "Gwenview removed from immutable image" bash -c '! rpm -q gwenview >/dev/null 2>&1'

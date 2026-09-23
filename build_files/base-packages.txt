@@ -53,6 +53,7 @@ dolphin
 konsole
 kate
 spectacle
+kolourpaint
 ark
 isoimagewriter
 okular
