@@ -65,6 +65,9 @@ run_check "krisCC installed" rpm -q krisCC
 run_check "krisCC files verify" rpm -V --nomtime krisCC
 run_check "krisCC executable" test -x /usr/bin/krisCC
 run_check "krisCC owned by immutable image" grep -Fxq krisCC /usr/share/krisos/owned-packages.txt
+run_check "ISO Image Writer installed" rpm -q isoimagewriter
+run_check "ISO Image Writer executable" test -x /usr/bin/isoimagewriter
+run_check "Gwenview removed from immutable image" bash -c '! rpm -q gwenview >/dev/null 2>&1'
 
 run_check "useradd default points to /var/home" grep -Fxq 'HOME=/var/home' /etc/default/useradd
 run_check "SELinux /var/home user context" bash -c "matchpathcon -n /var/home/kris | grep -q ':user_home_dir_t:'"

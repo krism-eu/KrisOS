@@ -116,7 +116,8 @@ RUN set -eux; \
       sane-backends \
       sane-backends-libs \
       sane-airscan \
-      libsane-airscan; \
+      libsane-airscan \
+      gwenview; \
     do \
       assert_absent "$pkg"; \
     done; \
@@ -137,7 +138,7 @@ RUN set -eux; \
       kate \
       spectacle \
       ark \
-      gwenview \
+      isoimagewriter \
       okular \
       kcalc \
       kio-admin \
@@ -366,7 +367,7 @@ RUN set -eux; \
     test -x /usr/bin/kate; \
     test -x /usr/bin/spectacle; \
     test -x /usr/bin/ark; \
-    test -x /usr/bin/gwenview; \
+    test -x /usr/bin/isoimagewriter; \
     test -x /usr/bin/okular; \
     test -x /usr/bin/kcalc; \
     test -x /usr/bin/kinfocenter; \
