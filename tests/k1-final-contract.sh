@@ -24,6 +24,16 @@ grep -Fq 'bootc-generic-iso' installer/build-installer.sh
 grep -Fq -- '--bootc-installer-payload-ref "$payload_ref"' installer/build-installer.sh
 grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-installer.sh
 grep -Fq 'ARG KRISOS_PAYLOAD_REF' installer/Containerfile
+grep -Fq 'ARG ANACONDA_NEVR=45.25-1.fc45' installer/Containerfile
+grep -Fq 'anaconda-${ANACONDA_NEVR}' installer/Containerfile
+grep -Fq 'anaconda-install-img-deps-${ANACONDA_NEVR}' installer/Containerfile
+grep -Fq 'anaconda-dracut-${ANACONDA_NEVR}' installer/Containerfile
+grep -Fq "grep -Fxq 'Alias=autovt@.service'" installer/Containerfile
+grep -Fq "grep -Fxq 'ReserveVT=2'" installer/Containerfile
+grep -Fq "grep -Fxq 'StandardInput=null'" installer/Containerfile
+grep -Fq 'systemctl enable anaconda-shell@.service' installer/Containerfile
+test ! -e installer/anaconda-shell.conf
+! grep -Fq 'ln -s /usr/lib/systemd/system/anaconda-shell@.service' installer/Containerfile
 grep -Fq "'graphical'" installer/Containerfile
 grep -Fq 'bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF' installer/Containerfile
 if grep -Eq '^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)' installer/Containerfile; then
@@ -47,10 +57,15 @@ grep -Fq "'selinux --enforcing'" installer/Containerfile
 test -s installer/krisos-fstab-finalize.ks
 grep -Fq 'COPY krisos-fstab-finalize.ks /usr/share/anaconda/post-scripts/krisos-fstab-finalize.ks' installer/Containerfile
 grep -Fq '%post --nochroot --erroronfail' installer/krisos-fstab-finalize.ks
-grep -Fq 'fstab=/mnt/sysimage/etc/fstab' installer/krisos-fstab-finalize.ks
+grep -Fq 'sysroot=/mnt/sysroot' installer/krisos-fstab-finalize.ks
+grep -Fq 'fstab="$sysroot/etc/fstab"' installer/krisos-fstab-finalize.ks
+! grep -Fq '/mnt/sysimage' installer/krisos-fstab-finalize.ks
 grep -Fq "anaconda_stamp='Created by anaconda'" installer/krisos-fstab-finalize.ks
 grep -Fq "bootc_stamp='Updated by bootc-fstab-edit.service'" installer/krisos-fstab-finalize.ks
 grep -Fq 'opts[i] == "ro"' installer/krisos-fstab-finalize.ks
+grep -Fq 'root_count="$(awk' installer/krisos-fstab-finalize.ks
+grep -Fq 'chroot "$sysroot" /usr/bin/bootc internals fixup-etc-fstab' installer/krisos-fstab-finalize.ks
+grep -Fq 'root_is_ro' installer/krisos-fstab-finalize.ks
 if grep -Eq '(^|[[:space:]])(systemctl|daemon-reload)([[:space:]]|$)' installer/krisos-fstab-finalize.ks; then
   echo "ERROR: fstab finalizer must not add a runtime daemon-reload workaround" >&2
   exit 1
@@ -61,6 +76,8 @@ fi
 test -s installer/krisos-home-labels-finalize.ks
 grep -Fq 'COPY krisos-home-labels-finalize.ks /usr/share/anaconda/post-scripts/krisos-home-labels-finalize.ks' installer/Containerfile
 grep -Fq '%post --nochroot --erroronfail' installer/krisos-home-labels-finalize.ks
+grep -Fq 'sysroot=/mnt/sysroot' installer/krisos-home-labels-finalize.ks
+! grep -Fq '/mnt/sysimage' installer/krisos-home-labels-finalize.ks
 grep -Fq 'helper=/usr/libexec/krisos/repair-home-labels' installer/krisos-home-labels-finalize.ks
 grep -Fq "grep -Fxq 'HOME=/var/home'" installer/krisos-home-labels-finalize.ks
 grep -Fq "grep -Eq '^SELINUX=enforcing$'" installer/krisos-home-labels-finalize.ks

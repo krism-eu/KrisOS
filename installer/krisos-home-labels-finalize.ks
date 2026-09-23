@@ -5,9 +5,13 @@
 %post --nochroot --erroronfail
 set -eu
 
-sysroot=/mnt/sysimage
+sysroot=/mnt/sysroot
 helper=/usr/libexec/krisos/repair-home-labels
 
+[ -d "$sysroot" ] || {
+    echo "KrisOS target system root is missing: $sysroot" >&2
+    exit 1
+}
 [ -x "$sysroot$helper" ] || {
     echo "KrisOS home-label helper missing from installed payload" >&2
     exit 1
