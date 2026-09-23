@@ -54,7 +54,7 @@ konsole
 kate
 spectacle
 ark
-gwenview
+isoimagewriter
 okular
 kcalc
 kio-admin

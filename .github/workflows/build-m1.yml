@@ -66,6 +66,8 @@ jobs:
           [[ "$KRISCC_RPM" =~ ^krisCC-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64\.rpm$ ]]
           [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]
           grep -Fxq nano build_files/base-packages.txt
+          grep -Fxq isoimagewriter build_files/base-packages.txt
+          ! grep -Fxq gwenview build_files/base-packages.txt
           grep -Fxq 'Hidden=true' build_files/krisCC-autostart.desktop
           grep -Fq 'COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm' Containerfile
           python3 - <<'PY'
@@ -195,7 +197,9 @@ jobs:
           sudo podman run --rm -e KRISCC_EXPECTED="$expected_kriscc" --entrypoint /bin/bash localhost/krisos:m1 -lc '
             test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "$KRISCC_EXPECTED" &&
             rpm -V krisCC &&
-            rpm -q iputils plasma-milou upower p11-kit-server nano &&
+            rpm -q iputils plasma-milou upower p11-kit-server nano isoimagewriter &&
+            ! rpm -q gwenview >/dev/null 2>&1 &&
+            test -x /usr/bin/isoimagewriter &&
             test -x /usr/libexec/krisos/repair-home-labels &&
             test -x /usr/bin/krisCC &&
             grep -Fxq "HOME=/var/home" /etc/default/useradd &&
