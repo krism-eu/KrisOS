@@ -2,7 +2,7 @@ name: Build K1 Final ISO Candidate
 
 on:
   push:
-    branches: [k1.0-final-restyle-fixes]
+    branches: [k1.0-final-iso]
   workflow_dispatch:
 
 permissions:
@@ -162,6 +162,8 @@ jobs:
             grep -Fxq "timezone Europe/Rome --utc" "$defaults"
             grep -Fxq "selinux --enforcing" "$defaults"
             grep -Fxq "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" "$defaults"
+            test "$(grep -c "^%post --nochroot --erroronfail$" "$defaults")" -eq 2
+            test "$(grep -c "^%end$" "$defaults")" -eq 2
             ! grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)" "$defaults"
             getent passwd install | grep -Fq "/usr/libexec/anaconda/run-anaconda"
             test -x /usr/bin/list-harddrives
