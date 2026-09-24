@@ -4,7 +4,11 @@
 # Keep this list at the feature/root level: Fedora owns the dependency closure.
 
 # Application model
+# Discover is the Flatpak GUI delegated by krisCC. Weak dependencies stay
+# disabled globally so PackageKit/notifier backends do not enter the image.
 flatpak
+plasma-discover
+plasma-discover-flatpak
 
 # Minimal Plasma shell/session + KWin
 plasma-workspace
@@ -116,6 +120,10 @@ ntfs-3g
 ntfsprogs
 zram-generator-defaults
 dnf5-plugins
+
+# On-demand web console. cockpit.socket is explicitly disabled in the image;
+# krisCC may start/stop it when requested, without enabling it persistently.
+cockpit
 
 # krisCC boot-entry integration. efibootmgr and grub2-tools are already owned
 # by the pinned Fedora bootc base; grubby is the only missing runtime tool.

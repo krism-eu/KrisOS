@@ -68,6 +68,14 @@ run_check "krisCC owned by immutable image" grep -Fxq krisCC /usr/share/krisos/o
 run_check "ISO Image Writer installed" rpm -q isoimagewriter
 run_check "ISO Image Writer executable" test -x /usr/bin/isoimagewriter
 run_check "Gwenview removed from immutable image" bash -c '! rpm -q gwenview >/dev/null 2>&1'
+run_check "Plasma Discover installed" rpm -q plasma-discover
+run_check "Plasma Discover Flatpak backend installed" rpm -q plasma-discover-flatpak
+run_check "Discover notifier omitted" bash -c '! rpm -q plasma-discover-notifier >/dev/null 2>&1'
+run_check "Discover PackageKit backend omitted" bash -c '! rpm -q plasma-discover-packagekit >/dev/null 2>&1'
+run_check "PackageKit omitted" bash -c '! rpm -q PackageKit >/dev/null 2>&1'
+run_check "Cockpit installed" rpm -q cockpit
+run_check "Cockpit socket disabled by default" bash -c 'systemctl is-enabled cockpit.socket 2>&1 | grep -qx disabled'
+run_check "DNF weak dependencies disabled" grep -Fxq 'install_weak_deps=False' /etc/dnf/libdnf5.conf.d/90-krisos.conf
 
 run_check "useradd default points to /var/home" grep -Fxq 'HOME=/var/home' /etc/default/useradd
 run_check "SELinux /var/home user context" bash -c "matchpathcon -n /var/home/kris | grep -q ':user_home_dir_t:'"

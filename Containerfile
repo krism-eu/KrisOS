@@ -4,7 +4,7 @@
 # Release builds use this exact Fedora 44 bootc Minimal digest. CI and manual
 # compatibility tests may override BASE_IMAGE explicitly without weakening the
 # reproducible default.
-ARG BASE_IMAGE=quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:03d9e53e46040b1d91441f7776a987dfc136ceb39500daa605237eb0cd211207
+ARG BASE_IMAGE=quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:efafb23ec21a9eb8ac41ff805a5bd89d95cd3012492d82fc2ba88a53c0585796
 
 # Fedora 44 keeps the r8169 RTL8168H Ethernet blob in the broad linux-firmware
 # package rather than realtek-firmware. Use a disposable stage to source only
@@ -117,7 +117,10 @@ RUN set -eux; \
       sane-backends-libs \
       sane-airscan \
       libsane-airscan \
-      gwenview; \
+      gwenview \
+      plasma-discover-notifier \
+      plasma-discover-packagekit \
+      PackageKit; \
     do \
       assert_absent "$pkg"; \
     done; \
@@ -139,6 +142,11 @@ RUN set -eux; \
       spectacle \
       ark \
       isoimagewriter \
+      plasma-discover \
+      plasma-discover-flatpak \
+      cockpit \
+      cockpit-system \
+      cockpit-ws \
       okular \
       kcalc \
       kio-admin \
@@ -310,6 +318,7 @@ RUN set -eux; \
     systemctl disable avahi-daemon.service avahi-daemon.socket; \
     systemctl disable mdmonitor.service raid-check.timer; \
     systemctl disable flatpak-add-fedora-repos.service; \
+    systemctl disable cockpit.socket; \
     systemctl mask dnf-makecache.timer dnf5-makecache.timer || true; \
     systemctl disable ufw.service || true; \
     systemctl set-default graphical.target
@@ -368,6 +377,8 @@ RUN set -eux; \
     test -x /usr/bin/spectacle; \
     test -x /usr/bin/ark; \
     test -x /usr/bin/isoimagewriter; \
+    test -x /usr/bin/plasma-discover; \
+    test -x /usr/libexec/cockpit-tls; \
     test -x /usr/bin/okular; \
     test -x /usr/bin/kcalc; \
     test -x /usr/bin/kinfocenter; \
@@ -413,6 +424,7 @@ RUN set -eux; \
     grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
     grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
     grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    grep -Fxq 'install_weak_deps=False' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
     rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
     rpm -q xcb-util-cursor; \
     test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
@@ -431,6 +443,7 @@ RUN set -eux; \
     assert_disabled mdmonitor.service; \
     assert_disabled raid-check.timer; \
     assert_disabled flatpak-add-fedora-repos.service; \
+    assert_disabled cockpit.socket; \
     assert_disabled dnf-makecache.timer; \
     assert_disabled dnf5-makecache.timer; \
     assert_disabled ufw.service; \
@@ -438,4 +451,7 @@ RUN set -eux; \
     test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
     assert_absent glibc-all-langpacks; \
     assert_absent linux-firmware; \
+    assert_absent plasma-discover-notifier; \
+    assert_absent plasma-discover-packagekit; \
+    assert_absent PackageKit; \
     bootc container lint

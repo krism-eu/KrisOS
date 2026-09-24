@@ -60,6 +60,7 @@ jobs:
           python3 tests/test_overlay_recovery.py
           python3 tests/test_overlay_identity.py
           grep -Eq '^ARG BASE_IMAGE=.*@sha256:[0-9a-f]{64}$' Containerfile
+          grep -Fxq 'ARG BASE_IMAGE=quay.io/bootc-devel/fedora-bootc-44-minimal@sha256:efafb23ec21a9eb8ac41ff805a5bd89d95cd3012492d82fc2ba88a53c0585796' Containerfile
           source build_files/krisCC.lock
           : "${KRISCC_SHA256:?KRISCC_SHA256 missing from lock}"
           [[ "$KRISCC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]
@@ -67,6 +68,9 @@ jobs:
           [[ "$KRISCC_SHA256" =~ ^[0-9a-f]{64}$ ]]
           grep -Fxq nano build_files/base-packages.txt
           grep -Fxq isoimagewriter build_files/base-packages.txt
+          grep -Fxq plasma-discover build_files/base-packages.txt
+          grep -Fxq plasma-discover-flatpak build_files/base-packages.txt
+          grep -Fxq cockpit build_files/base-packages.txt
           ! grep -Fxq gwenview build_files/base-packages.txt
           grep -Fxq 'Hidden=true' build_files/krisCC-autostart.desktop
           grep -Fq 'COPY build_files/krisCC/krisCC.rpm /tmp/krisCC.rpm' Containerfile
@@ -118,6 +122,7 @@ jobs:
           grep -Fq 'WantedBy=timers.target' systemd/krisos-sync.timer
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
+          grep -Fxq 'install_weak_deps=False' build_files/dnf-krisos.conf
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
           test ! -e installer
@@ -197,17 +202,24 @@ jobs:
           sudo podman run --rm -e KRISCC_EXPECTED="$expected_kriscc" --entrypoint /bin/bash localhost/krisos:m1 -lc '
             test "$(rpm -q --qf "%{VERSION}-%{RELEASE}.%{ARCH}" krisCC)" = "$KRISCC_EXPECTED" &&
             rpm -V krisCC &&
-            rpm -q iputils plasma-milou upower p11-kit-server nano isoimagewriter &&
+            rpm -q iputils plasma-milou upower p11-kit-server nano isoimagewriter plasma-discover plasma-discover-flatpak cockpit cockpit-system cockpit-ws &&
             ! rpm -q gwenview >/dev/null 2>&1 &&
+            ! rpm -q plasma-discover-notifier >/dev/null 2>&1 &&
+            ! rpm -q plasma-discover-packagekit >/dev/null 2>&1 &&
+            ! rpm -q PackageKit >/dev/null 2>&1 &&
             test -x /usr/bin/isoimagewriter &&
+            test -x /usr/bin/plasma-discover &&
+            test -x /usr/libexec/cockpit-tls &&
             test -x /usr/libexec/krisos/repair-home-labels &&
             test -x /usr/bin/krisCC &&
             grep -Fxq "HOME=/var/home" /etc/default/useradd &&
             matchpathcon -n /var/home/kris | grep -q ":user_home_dir_t:" &&
             test -s "/usr/lib/modules/$(ls /usr/lib/modules | head -n1)/initramfs.img" &&
             systemctl is-enabled krisos-sync.timer | grep -qx enabled &&
+            systemctl is-enabled cockpit.socket 2>&1 | grep -qx disabled &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
+            grep -Fxq "install_weak_deps=False" /etc/dnf/libdnf5.conf.d/90-krisos.conf &&
             grep -Fxq "Enabled=false" /etc/xdg/KDE/UserFeedback.conf &&
             grep -Fxq "Hidden=true" /etc/xdg/autostart/krisCC-background.desktop &&
             env QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic KRISCC_SMOKE_TEST=1 /usr/bin/krisCC
