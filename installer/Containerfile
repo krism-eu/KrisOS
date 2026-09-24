@@ -63,9 +63,14 @@ RUN test -n "$KRISOS_PAYLOAD_REF" && \
 # partitioning flow unchanged; only reconcile the two host-specific states that
 # were proven during acceptance: bootc's fstab marker and, conditionally, the
 # four fresh-home SELinux labels through the payload's conservative helper.
-RUN install -d -m 0755 /usr/share/anaconda/post-scripts
-COPY krisos-fstab-finalize.ks /usr/share/anaconda/post-scripts/krisos-fstab-finalize.ks
-COPY krisos-home-labels-finalize.ks /usr/share/anaconda/post-scripts/krisos-home-labels-finalize.ks
+COPY krisos-fstab-finalize.ks /usr/share/anaconda/krisos-fstab-finalize.ks
+COPY krisos-home-labels-finalize.ks /usr/share/anaconda/krisos-home-labels-finalize.ks
+RUN cat \
+      /usr/share/anaconda/krisos-fstab-finalize.ks \
+      /usr/share/anaconda/krisos-home-labels-finalize.ks \
+      >> /usr/share/anaconda/interactive-defaults.ks && \
+    test "$(grep -c '^%post --nochroot --erroronfail$' /usr/share/anaconda/interactive-defaults.ks)" -eq 2 && \
+    test "$(grep -c '^%end$' /usr/share/anaconda/interactive-defaults.ks)" -eq 2
 
 # bootc-generic-iso does not run Lorax for us. These are the upstream-required
 # live-Anaconda runtime preparations; without them the ISO can build cleanly
