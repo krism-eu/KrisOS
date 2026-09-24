@@ -15,7 +15,7 @@ This directory contains the minimal installer path for KrisOS.
 ## Build
 
 The supported offline build is `.github/workflows/build-k1-final-iso.yml` on
-`k1.0-final-restyle-fixes`. It verifies the payload digest and Cosign identity,
+`k1.0-final-iso`. It verifies the payload digest and Cosign identity,
 pulls by digest, assigns the locked target reference locally, and builds the ISO.
 The installer branch contains no duplicate KrisOS runtime source; post-install QA
 scripts are extracted from the exact main commit named by
