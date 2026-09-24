@@ -10,7 +10,7 @@ digest, firma Cosign, commit OCI e versione krisCC prima di incorporarlo.
 Ruoli:
 
 - `main`: runtime KrisOS, `rk`, overlay, pacchetti, krisCC e immagine bootc;
-- `k1.0-final-restyle-fixes`: runtime Anaconda/ISO e contratto di installazione;
+- `k1.0-final-iso`: runtime Anaconda/ISO e contratto di installazione;
 - nessun sorgente runtime viene duplicato su questa branch.
 
 La build supportata è `.github/workflows/build-k1-final-iso.yml`. Storage e
