@@ -8,7 +8,7 @@ default_image="ghcr.io/krism-eu/krisos:1b54db16a8208e226e65ec54653cd4880da38dd1"
 image="${KRISOS_IMAGE:-$default_image}"
 target="${KRISOS_TARGET_REF:-$image}"
 
-bundle_url="https://github.com/tuna-os/bootc-installer/releases/download/latest-dev/org.bootcinstaller.Installer.Devel.flatpak"
+bundle_url="https://api.github.com/repos/tuna-os/bootc-installer/releases/assets/588538088"
 bundle_sha256="82e044c2a49c58456bfdb4d4e333a965abdf4b012dbb91784ff37a49708dd4b2"
 app_id="org.bootcinstaller.Installer.Devel"
 
@@ -33,7 +33,10 @@ trap 'rm -rf "$tmpdir"' EXIT
 echo "KrisOS source image: $image"
 echo "KrisOS update target: $target"
 echo "Fetching pinned TunaOS bootc-installer bundle..."
-curl -fL --retry 3 --retry-delay 2 -o "$tmpdir/installer.flatpak" "$bundle_url"
+curl -fL --retry 3 --retry-delay 2 \
+    -H "Accept: application/octet-stream" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    -o "$tmpdir/installer.flatpak" "$bundle_url"
 printf '%s  %s\n' "$bundle_sha256" "$tmpdir/installer.flatpak" | sha256sum -c -
 
 python3 - "$image" "$target" "$tmpdir" <<'PY'
