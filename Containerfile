@@ -434,7 +434,7 @@ RUN set -eux; \
     test -f /etc/xdg/KDE/UserFeedback.conf; \
     grep -Fxq '[UserFeedback]' /etc/xdg/KDE/UserFeedback.conf; \
     grep -Fxq 'Enabled=false' /etc/xdg/KDE/UserFeedback.conf; \
-    ! firewall-offline-cmd --zone=public --list-services | tr ' ' '\\n' | grep -Eq '^(ssh|mdns|dhcpv6-client)$'; \
+    test -z "$(firewall-offline-cmd --zone=public --list-services | tr ' ' '\n' | grep -E '^(ssh|mdns|dhcpv6-client)$' || true)"; \
     grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
     grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
     grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
