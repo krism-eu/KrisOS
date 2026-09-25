@@ -192,9 +192,31 @@ path.chmod(0o600)
 PY
 unset password password2 PASSWORD
 
+# secureblue and other hardened hosts may reject unsigned/unrecognized registries
+# through containers-policy.json. The KrisOS source is already pinned by an
+# immutable digest, so give only that exact remote digest permission to pull.
+# Local containers-storage/OCI transports are needed for Fisherman's staging.
+policy_home="$tmpdir/policy-home"
+mkdir -p "$policy_home/.config/containers"
+cat > "$policy_home/.config/containers/policy.json" <<POLICY
+{
+  "default": [{"type": "reject"}],
+  "transports": {
+    "docker": {
+      "$default_image": [{"type": "insecureAcceptAnything"}]
+    },
+    "containers-storage": {
+      "": [{"type": "insecureAcceptAnything"}]
+    },
+    "oci": {
+      "": [{"type": "insecureAcceptAnything"}]
+    }
+  }
+}
+POLICY
 
 echo
 echo "Starting standalone Fisherman with the pre-existing-partition recipe."
 echo "Automatic whole-disk partitioning is disabled by customMounts."
 echo
-"${priv[@]}" "$fisherman_bin" "$recipe_path"
+"${priv[@]}" env HOME="$policy_home" XDG_CONFIG_HOME="$policy_home/.config" "$fisherman_bin" "$recipe_path"
