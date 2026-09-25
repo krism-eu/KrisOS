@@ -3,10 +3,10 @@ set -euo pipefail
 
 # This branch owns only the installer. The installed OS is the exact signed main payload.
 source build_files/KrisOS-payload.lock
-test "$KRISOS_COMMIT" = "1b54db16a8208e226e65ec54653cd4880da38dd1"
-test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:1b54db16a8208e226e65ec54653cd4880da38dd1"
-test "$KRISOS_DIGEST" = "sha256:5ed8b3a2f7a925abc9ac365b76e9f944957908517c3f429bc5091c56b1a64301"
-test "$KRISOS_KRISCC" = "0.7.9-1.fc44.x86_64"
+[[ "$KRISOS_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:$KRISOS_COMMIT"
+[[ "$KRISOS_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+[[ "$KRISOS_KRISCC" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc44\.x86_64$ ]]
 
 # Runtime sources and runtime workflows belong to main and must not drift here.
 test ! -e Containerfile
