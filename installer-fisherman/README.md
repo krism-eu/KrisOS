@@ -19,7 +19,7 @@ From a Fedora live session:
 bash installer-fisherman/run.sh
 ```
 
-The script shows `lsblk` and asks for exactly four existing partitions:
+The script first checks the host tools Fisherman needs (`sfdisk`, `mkfs.fat`, `mkfs.ext4`, `skopeo`, `podman`) plus the wrapper tools, then shows `lsblk` and asks for exactly four existing partitions:
 
 - KrisOS root: formatted ext4;
 - KrisOS `/boot`: formatted ext4;
@@ -42,8 +42,8 @@ whole-disk partitioner and formats/mounts only the listed partitions.
 
 The profile keeps KrisOS on the current Fedora/OSTree GRUB path:
 
-- source image: published KrisOS payload #120 (`4be27021c77f3942d896e5a59baeb3af1e78e3ed`) by default;
-- target image: same reference unless `KRISOS_TARGET_REF` is supplied;
+- source image: published KrisOS payload #120 pinned by digest (`sha256:a7e79ac9…`);
+- target image: commit tag `4be27021…` unless `KRISOS_TARGET_REF` is supplied;
 - ext4 root, `/boot`, and separate `/home`;
 - existing ESP preserved;
 - GRUB2;
