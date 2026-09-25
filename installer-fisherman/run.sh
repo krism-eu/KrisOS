@@ -172,4 +172,4 @@ echo
 echo "Starting Fisherman with the pre-existing-partition recipe."
 echo "Automatic whole-disk partitioning is disabled by customMounts."
 echo
-exec flatpak run "$app_id" --autoinstall "$recipe_path"
+flatpak run "$app_id" --autoinstall "$recipe_path"
