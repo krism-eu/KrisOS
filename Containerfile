@@ -415,6 +415,15 @@ RUN set -eux; \
     grep -Fxq 'fs.protected_regular = 2' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
     grep -Fxq 'fs.protected_fifos = 2' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
     grep -Fxq 'fs.suid_dumpable = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.tcp_syncookies = 1' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.tcp_rfc1337 = 1' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.icmp_ignore_bogus_error_responses = 1' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.conf.all.accept_redirects = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.conf.default.accept_redirects = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.conf.all.send_redirects = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.conf.default.send_redirects = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.conf.all.accept_source_route = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
+    grep -Fxq 'net.ipv4.conf.default.accept_source_route = 0' /usr/lib/sysctl.d/55-krisos-hardening.conf; \
     grep -Fxq 'AutoEnable=false' /etc/bluetooth/main.conf; \
     grep -Fxq 'Hidden=true' /etc/xdg/autostart/geoclue-demo-agent.desktop; \
     grep -Fxq 'LLMNR=no' /usr/lib/systemd/resolved.conf.d/60-krisos.conf; \

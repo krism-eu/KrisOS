@@ -109,6 +109,11 @@ jobs:
           grep -Fxq 'After=multi-user.target krisos-overlay.service' systemd/krisos-sync.service
           grep -Fxq 'LLMNR=no' build_files/60-krisos-resolved.conf
           grep -Fxq 'MulticastDNS=no' build_files/60-krisos-resolved.conf
+          grep -Fxq 'net.ipv4.tcp_syncookies = 1' build_files/55-krisos-hardening.conf
+          grep -Fxq 'net.ipv4.tcp_rfc1337 = 1' build_files/55-krisos-hardening.conf
+          grep -Fxq 'net.ipv4.conf.all.accept_redirects = 0' build_files/55-krisos-hardening.conf
+          grep -Fxq 'net.ipv4.conf.all.send_redirects = 0' build_files/55-krisos-hardening.conf
+          grep -Fxq 'net.ipv4.conf.all.accept_source_route = 0' build_files/55-krisos-hardening.conf
           grep -Fq 'ExecStart=/usr/bin/rk sync' systemd/krisos-sync.service
           grep -Fq 'ConditionPathExists=/var/lib/krisos/needs-sync' systemd/krisos-sync.service
           grep -Fq 'ConditionPathExists=/run/krisos/overlay-mounted' systemd/krisos-sync.service
