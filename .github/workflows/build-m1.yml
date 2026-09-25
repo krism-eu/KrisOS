@@ -130,6 +130,7 @@ jobs:
           grep -Fq 'excludepkgs=*.i686' build_files/dnf-krisos.conf
           grep -Fq 'multilib_policy=best' build_files/dnf-krisos.conf
           grep -Fxq 'install_weak_deps=False' build_files/dnf-krisos.conf
+          grep -Fxq 'z /var/home/* - - - -' build_files/tmpfiles-krisos.conf
           legacy_prefix='ra''ku'
           ! grep -RniE "${legacy_prefix}[-_ ]?kris|${legacy_prefix}os" --exclude-dir=.git .
           test ! -e installer
@@ -220,6 +221,7 @@ jobs:
             test -x /usr/libexec/krisos/repair-home-labels &&
             test -x /usr/bin/krisCC &&
             grep -Fxq "HOME=/var/home" /etc/default/useradd &&
+            grep -Fxq "z /var/home/* - - - -" /usr/lib/tmpfiles.d/krisos.conf &&
             matchpathcon -n /var/home/kris | grep -q ":user_home_dir_t:" &&
             test -s "/usr/lib/modules/$(ls /usr/lib/modules | head -n1)/initramfs.img" &&
             systemctl is-enabled krisos-sync.timer | grep -qx enabled &&

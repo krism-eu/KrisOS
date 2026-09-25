@@ -406,6 +406,8 @@ RUN set -eux; \
     test -f /usr/lib/tmpfiles.d/krisos.conf; \
     grep -Fxq 'd /var/lib/krisos 0755 root root -' \
       /usr/lib/tmpfiles.d/krisos.conf; \
+    grep -Fxq 'z /var/home/* - - - -' \
+      /usr/lib/tmpfiles.d/krisos.conf; \
     grep -Fxq 'C /var/lib/krisos/packages.list 0644 root root - /usr/share/factory/var/lib/krisos/packages.list' \
       /usr/lib/tmpfiles.d/krisos.conf; \
     grep -Fxq 'C /var/lib/NetworkManager/NetworkManager.state 0600 root root - /usr/share/factory/var/lib/NetworkManager/NetworkManager.state' \
