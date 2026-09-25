@@ -42,7 +42,7 @@ whole-disk partitioner and formats/mounts only the listed partitions.
 
 The profile keeps KrisOS on the current Fedora/OSTree GRUB path:
 
-- source image: validated KrisOS payload #118 by default;
+- source image: published KrisOS payload #120 (`4be27021c77f3942d896e5a59baeb3af1e78e3ed`) by default;
 - target image: same reference unless `KRISOS_TARGET_REF` is supplied;
 - ext4 root, `/boot`, and separate `/home`;
 - existing ESP preserved;
@@ -52,7 +52,7 @@ The profile keeps KrisOS on the current Fedora/OSTree GRUB path:
 - experimental unified storage disabled;
 - user added to `wheel`.
 
-To point it at another published KrisOS image:
+The default now matches the payload published by Build M1 #120. To point it at another published KrisOS image:
 
 ```bash
 KRISOS_IMAGE=ghcr.io/krism-eu/krisos:<commit> \
