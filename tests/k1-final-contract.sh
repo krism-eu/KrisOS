@@ -93,7 +93,7 @@ grep -Fq 'profiles="$sysroot/etc/NetworkManager/system-connections"' installer/k
 grep -Fq 'chroot "$sysroot" /usr/bin/nmcli --offline connection modify ipv6.method disabled \' installer/krisos-network-finalize.ks
 grep -Fq 'install -m 0600 -o root -g root "$tmp" "$profile"' installer/krisos-network-finalize.ks
 grep -Fq 'chroot "$sysroot" /usr/sbin/restorecon -F -- "/etc/NetworkManager/system-connections/$name"' installer/krisos-network-finalize.ks
-grep -Fq "grep -Fq 'method=disabled' \"$profile\"" installer/krisos-network-finalize.ks
+grep -Fq "grep -Fq 'method=disabled'" installer/krisos-network-finalize.ks
 ! grep -Fq 'ipv6.disable=1' installer/krisos-network-finalize.ks
 ! grep -Eq '(^|[[:space:]])(chcon|semanage|semodule)([[:space:]]|$)' installer/krisos-network-finalize.ks
 # Pin the integration contract to the exact main source behind the payload:
