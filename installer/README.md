@@ -8,7 +8,7 @@ This directory contains the minimal installer path for KrisOS.
 - `bootc-generic-iso`, not the legacy `anaconda-iso` path.
 - Exact validated KrisOS bootc payload embedded in the ISO, while Anaconda storage and user setup remain interactive.
 - No destructive automatic partitioning.
-- Manual ext4 layout with separate `/var/home` supported by Fedora 45 Anaconda.
+- Manual ext4 layout with a physically separate home partition assigned to the logical `/home` mount point in Anaconda.
 - Manual user creation: the intended desktop user must be marked as administrator (wheel); no account credentials or autologin are baked into the image.
 - Reduce avoidable disk-discovery delay without disabling generic storage discovery.
 
@@ -39,11 +39,11 @@ Do not use automatic partition clearing while validating the installer. In Anaco
 - EFI System Partition -> `/boot/efi` (vfat)
 - dedicated ext4 partition -> `/boot`
 - dedicated ext4 partition -> `/`
-- dedicated ext4 partition -> `/var/home`
+- dedicated ext4 partition -> `/home`
 
 Do not select automatic storage, automatic partition clearing, LVM autopartitioning, or a swap partition for the K1.0 validation install.
 
-`/var/home` is intentional: KrisOS exposes `/home` as a symlink to `/var/home`, matching bootc/OSTree conventions.
+`/home` is intentional in the installer UI. KrisOS/bootc owns the compatibility mapping to persistent `/var/home`; this validation build deliberately tests the logical `/home` mount point instead of mounting the `/var/home` target path directly.
 
 No swap partition is required; KrisOS uses zram.
 
@@ -72,18 +72,15 @@ in the installer path:
   'avc_running' failed`. KrisOS keeps Anaconda's account logic but switches
   that single `chage` target operation to shadow-utils prefix mode (`-P`),
   which does not chroot.
-- bootc finishes its physical-root SELinux relabel before Anaconda creates the
-  interactive user and updates mutable `/etc`. The final `%post` therefore
-  restores the target policy recursively on fresh `/etc` and each direct
-  `/var/home/<user>`, then fails installation if a dry run still finds label
-  mismatches.
+- The previous installer-side recursive home relabel is intentionally not used in this validation build. A separate ext4 partition will be assigned to `/home` so Anaconda/bootc can establish the native `/home` to `/var/home` mapping and SELinux labels without a compensating relabel. Post-install QA must compare the actual and expected labels before any repair is attempted.
 - The physical root is already selected by bootc kernel arguments and the
   running `/` is composefs. The redundant Anaconda root entry is removed from
   `/etc/fstab`; otherwise `systemd-remount-fs.service` tries to remount the
   composefs root and the installed system boots degraded.
 
-These steps apply to a fresh installation only. They are not update-time
-relabeling or runtime workarounds.
+These steps apply to a fresh installation only. They are not update-time relabeling or runtime workarounds.
+
+Installer-created NetworkManager keyfiles are rewritten offline with `ipv6.method=disabled`. This keeps IPv6 support present in the kernel while making the installed KrisOS connection profiles IPv4-only by default.
 
 ## Disk discovery policy
 

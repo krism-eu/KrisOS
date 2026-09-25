@@ -165,6 +165,8 @@ jobs:
             grep -Fxq "bootc --source-imgref=registry:$KRISOS_PAYLOAD_REF --target-imgref=$KRISOS_PAYLOAD_REF" "$defaults"
             test "$(grep -c "^%post --nochroot --erroronfail$" "$defaults")" -eq 2
             test "$(grep -c "^%end$" "$defaults")" -eq 2
+            grep -Fq "nmcli --offline connection modify ipv6.method disabled" "$defaults"
+            ! grep -Fq "restorecon -RFv -- \"/var/home/" "$defaults"
             ! grep -Eq "^[[:space:]]*(clearpart|autopart|part|partition|logvol|volgroup|user|rootpw|reboot|shutdown)([[:space:]]|$)" "$defaults"
             getent passwd install | grep -Fq "/usr/libexec/anaconda/run-anaconda"
             test -x /usr/bin/list-harddrives
