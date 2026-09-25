@@ -5,9 +5,10 @@ set -euo pipefail
 # bootc-installer/Fisherman backend.  This path never repartitions a whole disk:
 # customMounts makes Fisherman skip its automatic partitioning code.
 
-default_image="ghcr.io/krism-eu/krisos:4be27021c77f3942d896e5a59baeb3af1e78e3ed"
+default_image="ghcr.io/krism-eu/krisos@sha256:a7e79ac9a3b524571e8b6788f6ac401c9b34a0b8bd364a0011093fc1720a67be"
+default_target="ghcr.io/krism-eu/krisos:4be27021c77f3942d896e5a59baeb3af1e78e3ed"
 image="${KRISOS_IMAGE:-$default_image}"
-target="${KRISOS_TARGET_REF:-$image}"
+target="${KRISOS_TARGET_REF:-$default_target}"
 
 # Immutable GitHub release asset published 2026-09-25.
 # It contains tuna-os/fisherman commit 60f672ff376f079dd88b66d3058aed32bedfdc3d.
@@ -15,7 +16,7 @@ bundle_url="https://api.github.com/repos/tuna-os/bootc-installer/releases/assets
 bundle_sha256="82e044c2a49c58456bfdb4d4e333a965abdf4b012dbb91784ff37a49708dd4b2"
 app_id="org.bootcinstaller.Installer.Devel"
 
-for cmd in curl flatpak python3 sha256sum sudo lsblk blkid findmnt; do
+for cmd in curl flatpak python3 sha256sum sudo lsblk blkid findmnt sfdisk mkfs.fat mkfs.ext4 skopeo podman; do
     command -v "$cmd" >/dev/null 2>&1 || {
         echo "Missing required command: $cmd" >&2
         exit 1
@@ -23,9 +24,9 @@ for cmd in curl flatpak python3 sha256sum sudo lsblk blkid findmnt; do
 done
 
 case "$image" in
-    ghcr.io/krism-eu/krisos:*) ;;
+    ghcr.io/krism-eu/krisos:*|ghcr.io/krism-eu/krisos@sha256:*) ;;
     *)
-        echo "KRISOS_IMAGE must be ghcr.io/krism-eu/krisos:<tag>" >&2
+        echo "KRISOS_IMAGE must be a KrisOS GHCR tag or sha256 digest reference" >&2
         exit 1
         ;;
 esac
