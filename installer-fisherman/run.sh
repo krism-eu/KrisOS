@@ -205,6 +205,52 @@ unset password password2 PASSWORD
 # secureblue can reject registries through containers-policy.json.
 # Fedora's normal policy is left untouched.  On secureblue only, give the exact
 # immutable KrisOS digest permission in a temporary per-process policy.
+# Keep containers/image temporary blob staging off the live ISO overlay.
+# Fisherman already places its scratch area on the mounted target root when /var
+# is space-constrained; point containers/storage tmpdir at that same disk-backed path.
+storage_conf="$tmpdir/storage.conf"
+storage_tmp="/mnt/fisherman-target/.fisherman-scratch/containers-tmp"
+if [[ -r /etc/containers/storage.conf ]]; then
+    cp /etc/containers/storage.conf "$storage_conf"
+elif [[ -r /usr/share/containers/storage.conf ]]; then
+    cp /usr/share/containers/storage.conf "$storage_conf"
+else
+    cat > "$storage_conf" <<'STORAGE'
+[storage]
+driver = "overlay"
+runroot = "/run/containers/storage"
+graphroot = "/var/lib/containers/storage"
+STORAGE
+fi
+
+STORAGE_CONF="$storage_conf" STORAGE_TMP="$storage_tmp" python3 - <<'PY'
+import os
+from pathlib import Path
+
+path = Path(os.environ["STORAGE_CONF"])
+tmp = os.environ["STORAGE_TMP"]
+lines = path.read_text().splitlines()
+
+storage_idx = next((i for i, line in enumerate(lines) if line.strip() == "[storage]"), None)
+if storage_idx is None:
+    lines += ["", "[storage]", f'tmpdir = "{tmp}"']
+else:
+    end = next((i for i in range(storage_idx + 1, len(lines))
+                if lines[i].strip().startswith("[") and lines[i].strip().endswith("]")), len(lines))
+    replaced = False
+    for i in range(storage_idx + 1, end):
+        if lines[i].strip().lower().startswith("tmpdir"):
+            lines[i] = f'tmpdir = "{tmp}"'
+            replaced = True
+            break
+    if not replaced:
+        lines.insert(end, f'tmpdir = "{tmp}"')
+
+path.write_text("\n".join(lines) + "\n")
+PY
+
+run_env=(env CONTAINERS_STORAGE_CONF="$storage_conf")
+
 policy_env=()
 if [[ -e /usr/share/secureblue ]] || grep -qi secureblue /etc/os-release 2>/dev/null; then
     policy_home="$tmpdir/policy-home"
@@ -225,10 +271,12 @@ if [[ -e /usr/share/secureblue ]] || grep -qi secureblue /etc/os-release 2>/dev/
   }
 }
 POLICY
-    policy_env=(env HOME="$policy_home" XDG_CONFIG_HOME="$policy_home/.config")
+    policy_env=(HOME="$policy_home" XDG_CONFIG_HOME="$policy_home/.config")
 fi
+
+run_env+=("${policy_env[@]}")
 echo
 echo "Starting standalone Fisherman with the pre-existing-partition recipe."
 echo "Automatic whole-disk partitioning is disabled by customMounts."
 echo
-"${priv[@]}" "${policy_env[@]}" "$fisherman_bin" "$recipe_path"
+"${priv[@]}" "${run_env[@]}" "$fisherman_bin" "$recipe_path"
