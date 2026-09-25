@@ -1,5 +1,8 @@
-# KrisOS installer-only finalization for bootc-managed Anaconda installs.
-# Operate on Anaconda's installed system root, never the physical sysimage view.
+# KrisOS installer-only fstab finalization for bootc/composefs installs.
+# The physical root is selected by bootc kernel arguments.  Listing that same
+# backing filesystem as / in fstab makes systemd-remount-fs try to remount the
+# composefs root and fail with mount(8) exit 32.  Preserve normal /boot and
+# persistent-data entries, but remove the redundant / entry.
 %post --nochroot --erroronfail
 set -eu
 
@@ -8,55 +11,50 @@ fstab="$sysroot/etc/fstab"
 anaconda_stamp='Created by anaconda'
 bootc_stamp='Updated by bootc-fstab-edit.service'
 
-[ -d "$sysroot" ] || { echo "KrisOS target system root is missing: $sysroot" >&2; exit 1; }
-[ -f "$fstab" ] || { echo "KrisOS target fstab is missing" >&2; exit 1; }
+[ -d "$sysroot" ] || {
+    echo "KrisOS target system root is missing: $sysroot" >&2
+    exit 1
+}
+[ -f "$fstab" ] || {
+    echo "KrisOS target fstab is missing" >&2
+    exit 1
+}
 grep -Fq "$anaconda_stamp" "$fstab" || {
     echo "KrisOS target fstab was not created by Anaconda" >&2
     exit 1
 }
 
-root_count="$(awk '
+root_count_before="$(awk '
   /^[[:space:]]*#/ || NF < 4 { next }
   $2 == "/" { count++ }
   END { print count + 0 }
 ' "$fstab")"
-[ "$root_count" -eq 1 ] || {
-    echo "KrisOS expected exactly one active root entry in fstab, found $root_count" >&2
+[ "$root_count_before" -eq 1 ] || {
+    echo "KrisOS expected exactly one Anaconda root entry before finalization, found $root_count_before" >&2
     exit 1
 }
 
-root_is_ro() {
-    awk '
-      /^[[:space:]]*#/ || NF < 4 { next }
-      $2 == "/" {
-        n = split($4, opts, ",")
-        for (i = 1; i <= n; i++)
-          if (opts[i] == "ro") found = 1
-      }
-      END { exit found ? 0 : 1 }
-    ' "$fstab"
-}
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+awk '
+  /^[[:space:]]*#/ || NF < 4 { print; next }
+  $2 == "/" { next }
+  { print }
+' "$fstab" > "$tmp"
+cat "$tmp" > "$fstab"
 
-if grep -Fq "$bootc_stamp" "$fstab"; then
-    root_is_ro || {
-        echo "bootc fstab marker exists but root is not read-only" >&2
-        exit 1
-    }
-    exit 0
-fi
-
-if root_is_ro; then
-    # bootc itself does not add the marker when no edit is needed. Add only its
-    # canonical stamp so the generator will not schedule a no-op editor later.
+if ! grep -Fq "$bootc_stamp" "$fstab"; then
     printf '\n# %s\n' "$bootc_stamp" >> "$fstab"
-else
-    [ -x "$sysroot/usr/bin/bootc" ] || {
-        echo "bootc is missing from the installed target" >&2
-        exit 1
-    }
-    chroot "$sysroot" /usr/bin/bootc internals fixup-etc-fstab
 fi
+printf '%s\n' '# KrisOS: bootc kernel arguments own the physical root; composefs / is not an fstab remount target.' >> "$fstab"
 
-grep -Fq "$bootc_stamp" "$fstab"
-root_is_ro
+root_count_after="$(awk '
+  /^[[:space:]]*#/ || NF < 4 { next }
+  $2 == "/" { count++ }
+  END { print count + 0 }
+' "$fstab")"
+[ "$root_count_after" -eq 0 ] || {
+    echo "KrisOS root entry survived fstab finalization" >&2
+    exit 1
+}
 %end
