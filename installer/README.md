@@ -58,6 +58,33 @@ Keep user creation interactive in Anaconda. For the K1.0 physical validation:
 
 KrisOS sets the image-level `useradd` default home root to `/var/home` and rebuilds the SELinux homedir policy before Anaconda creates users. The installed-system validation checks both `wheel` membership and the real `/var/home/<user>` SELinux label.
 
+## Fresh-install finalization
+
+The validated Fedora 45 live installer remains SELinux-enabled and permissive
+(`selinux=1 enforcing=0`), while the installed KrisOS target remains enforcing.
+
+A real installed-system audit exposed three ordering issues that are handled only
+in the installer path:
+
+- Anaconda 45.25 calls `chage -R /mnt/sysroot` after creating the account.
+  With the bootc target this can leave libselinux initialized against the live
+  root and `chage` aborts with `avc_context_to_sid_raw: Assertion
+  'avc_running' failed`. KrisOS keeps Anaconda's account logic but switches
+  that single `chage` target operation to shadow-utils prefix mode (`-P`),
+  which does not chroot.
+- bootc finishes its physical-root SELinux relabel before Anaconda creates the
+  interactive user and updates mutable `/etc`. The final `%post` therefore
+  restores the target policy recursively on fresh `/etc` and each direct
+  `/var/home/<user>`, then fails installation if a dry run still finds label
+  mismatches.
+- The physical root is already selected by bootc kernel arguments and the
+  running `/` is composefs. The redundant Anaconda root entry is removed from
+  `/etc/fstab`; otherwise `systemd-remount-fs.service` tries to remount the
+  composefs root and the installed system boots degraded.
+
+These steps apply to a fresh installation only. They are not update-time
+relabeling or runtime workarounds.
+
 ## Disk discovery policy
 
 The ISO boot entry currently adds:
