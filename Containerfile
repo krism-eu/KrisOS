@@ -498,3 +498,76 @@ RUN set -eux; \
     assert_absent plasma-discover-packagekit; \
     assert_absent PackageKit; \
     bootc container lint
+; \ \
+    grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
+    grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
+    grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    grep -Fxq 'install_weak_deps=False' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
+    rpm -q xcb-util-cursor; \
+    test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
+    test -d /usr/share/licenses/krisos-rtl8168-firmware; \
+    test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
+    test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
+    test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
+    systemctl is-enabled krisos-overlay.service | grep -qx enabled; \
+    systemctl is-enabled krisos-sync.timer | grep -qx enabled; \
+    systemctl is-enabled plasmalogin.service | grep -qx enabled; \
+    systemctl is-enabled firewalld.service | grep -qx enabled; \
+    systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
+    assert_disabled systemd-homed.service; \
+    assert_disabled avahi-daemon.service; \
+    assert_disabled avahi-daemon.socket; \
+    assert_disabled mdmonitor.service; \
+    assert_disabled raid-check.timer; \
+    assert_disabled flatpak-add-fedora-repos.service; \
+    assert_disabled cockpit.socket; \
+    assert_disabled NetworkManager-wait-online.service; \
+    assert_disabled dnf-makecache.timer; \
+    assert_disabled dnf5-makecache.timer; \
+    assert_disabled ufw.service; \
+    test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
+    test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
+    assert_absent glibc-all-langpacks; \
+    assert_absent linux-firmware; \
+    assert_absent plasma-discover-notifier; \
+    assert_absent plasma-discover-packagekit; \
+    assert_absent PackageKit; \
+    bootc container lint
+; \
+    grep -Eq '^SELINUX=enforcing$' /etc/selinux/config; \
+    grep -Fxq 'LANG=it_IT.UTF-8' /etc/locale.conf; \
+    grep -Fxq 'excludepkgs=*.i686' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    grep -Fxq 'multilib_policy=best' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    grep -Fxq 'install_weak_deps=False' /etc/dnf/libdnf5.conf.d/90-krisos.conf; \
+    rpm -q glibc-langpack-en glibc-langpack-it langpacks-core-en langpacks-core-it; \
+    rpm -q xcb-util-cursor; \
+    test -f /usr/lib/firmware/rtl_nic/rtl8168h-2.fw.xz; \
+    test -d /usr/share/licenses/krisos-rtl8168-firmware; \
+    test -e /usr/lib64/qt6/plugins/platforms/libqxcb.so; \
+    test -e /usr/lib64/qt6/plugins/plasma/kcms/systemsettings/kcm_firewall.so; \
+    test -e /usr/lib64/qt6/plugins/kf6/plasma_firewall/firewalldbackend.so; \
+    systemctl is-enabled krisos-overlay.service | grep -qx enabled; \
+    systemctl is-enabled krisos-sync.timer | grep -qx enabled; \
+    systemctl is-enabled plasmalogin.service | grep -qx enabled; \
+    systemctl is-enabled firewalld.service | grep -qx enabled; \
+    systemctl is-enabled systemd-timesyncd.service | grep -qx enabled; \
+    assert_disabled systemd-homed.service; \
+    assert_disabled avahi-daemon.service; \
+    assert_disabled avahi-daemon.socket; \
+    assert_disabled mdmonitor.service; \
+    assert_disabled raid-check.timer; \
+    assert_disabled flatpak-add-fedora-repos.service; \
+    assert_disabled cockpit.socket; \
+    assert_disabled dnf-makecache.timer; \
+    assert_disabled dnf5-makecache.timer; \
+    assert_disabled ufw.service; \
+    test -z "$(ldd /usr/lib64/qt6/plugins/platforms/libqxcb.so | awk '/not found/{print}')"; \
+    test -z "$(ldd /usr/libexec/plasma-login-greeter | awk '/not found/{print}')"; \
+    assert_absent glibc-all-langpacks; \
+    assert_absent linux-firmware; \
+    assert_absent plasma-discover-notifier; \
+    assert_absent plasma-discover-packagekit; \
+    assert_absent PackageKit; \
+    bootc container lint
