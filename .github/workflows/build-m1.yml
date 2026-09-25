@@ -227,7 +227,7 @@ jobs:
             systemctl is-enabled NetworkManager-wait-online.service 2>&1 | grep -qx disabled &&
             grep -Fxq "LLMNR=no" /usr/lib/systemd/resolved.conf.d/60-krisos.conf &&
             grep -Fxq "MulticastDNS=no" /usr/lib/systemd/resolved.conf.d/60-krisos.conf &&
-            ! firewall-offline-cmd --zone=public --list-services | tr " " "\n" | grep -Eq "^(ssh|mdns|dhcpv6-client)$" &&
+            test -z "$(firewall-offline-cmd --zone=public --list-services | tr " " "\n" | grep -E "^(ssh|mdns|dhcpv6-client)$" || true)" &&
             grep -Fxq krisCC /usr/share/krisos/owned-packages.txt &&
             grep -Fxq "countme=false" /etc/dnf/repos.override.d/90-krisos-privacy.repo &&
             grep -Fxq "install_weak_deps=False" /etc/dnf/libdnf5.conf.d/90-krisos.conf &&
