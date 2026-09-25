@@ -24,7 +24,7 @@ grep -Fq 'bootc-generic-iso' installer/build-installer.sh
 grep -Fq -- '--bootc-installer-payload-ref "$payload_ref"' installer/build-installer.sh
 grep -Fq -- '--build-arg KRISOS_PAYLOAD_REF="$payload_ref"' installer/build-installer.sh
 grep -Fq 'ARG KRISOS_PAYLOAD_REF' installer/Containerfile
-grep -Fq 'ARG ANACONDA_NEVR=45.25-1.fc45' installer/Containerfile
+grep -Fq 'ARG ANACONDA_NEVR=45.27-1.fc45' installer/Containerfile
 grep -Fq 'anaconda-${ANACONDA_NEVR}' installer/Containerfile
 grep -Fq 'anaconda-install-img-deps-${ANACONDA_NEVR}' installer/Containerfile
 grep -Fq 'anaconda-dracut-${ANACONDA_NEVR}' installer/Containerfile
@@ -32,7 +32,7 @@ grep -Fq "grep -Fxq 'Alias=autovt@.service'" installer/Containerfile
 grep -Fq "grep -Fxq 'ReserveVT=2'" installer/Containerfile
 grep -Fq "grep -Fxq 'StandardInput=null'" installer/Containerfile
 grep -Fq 'systemctl enable anaconda-shell@.service' installer/Containerfile
-grep -Fq 'KrisOS workaround: Anaconda 45.25 invokes shadow-utils chage with -R' installer/Containerfile
+grep -Fq 'KrisOS workaround: Anaconda 45.27 invokes shadow-utils chage with -R' installer/Containerfile
 test ! -e installer/anaconda-shell.conf
 ! grep -Fq 'ln -s /usr/lib/systemd/system/anaconda-shell@.service' installer/Containerfile
 grep -Fq "'graphical'" installer/Containerfile

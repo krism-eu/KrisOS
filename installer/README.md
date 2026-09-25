@@ -4,7 +4,7 @@ This directory contains the minimal installer path for KrisOS.
 
 ## Goals
 
-- Fedora 45 Anaconda runtime pinned to 45.25-1.fc45, independent from the installed KrisOS payload.
+- Fedora 45 Anaconda runtime pinned to 45.27-1.fc45, independent from the installed KrisOS payload.
 - `bootc-generic-iso`, not the legacy `anaconda-iso` path.
 - Exact validated KrisOS bootc payload embedded in the ISO, while Anaconda storage and user setup remain interactive.
 - No destructive automatic partitioning.
@@ -66,7 +66,7 @@ The validated Fedora 45 live installer remains SELinux-enabled and permissive
 A real installed-system audit exposed three ordering issues that are handled only
 in the installer path:
 
-- Anaconda 45.25 calls `chage -R /mnt/sysroot` after creating the account.
+- Anaconda 45.27 calls `chage -R /mnt/sysroot` after creating the account.
   With the bootc target this can leave libselinux initialized against the live
   root and `chage` aborts with `avc_context_to_sid_raw: Assertion
   'avc_running' failed`. KrisOS keeps Anaconda's account logic but switches
