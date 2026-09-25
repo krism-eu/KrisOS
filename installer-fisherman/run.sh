@@ -26,7 +26,8 @@ done
 if command -v sudo >/dev/null 2>&1; then
     priv=(sudo)
 elif command -v run0 >/dev/null 2>&1; then
-    priv=(run0)
+    # secureblue documents that plain run0 can silently exit 203 for some commands.
+    priv=(run0 -i)
 else
     echo "Missing privilege helper: need sudo or run0" >&2
     exit 1
