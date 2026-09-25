@@ -23,10 +23,12 @@ for cmd in curl tar python3 sha256sum lsblk blkid findmnt sfdisk mkfs.fat mkfs.e
     }
 done
 
-if command -v sudo >/dev/null 2>&1; then
+if [[ "$EUID" -eq 0 ]]; then
+    priv=()
+elif command -v sudo >/dev/null 2>&1; then
     priv=(sudo)
 elif command -v run0 >/dev/null 2>&1; then
-    # secureblue documents that plain run0 can silently exit 203 for some commands.
+    # On secureblue, enter a run0 root shell first if direct run0 execution is denied.
     priv=(run0 -i)
 else
     echo "Missing privilege helper: need sudo or run0" >&2
