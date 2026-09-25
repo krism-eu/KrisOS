@@ -205,51 +205,39 @@ unset password password2 PASSWORD
 # secureblue can reject registries through containers-policy.json.
 # Fedora's normal policy is left untouched.  On secureblue only, give the exact
 # immutable KrisOS digest permission in a temporary per-process policy.
-# Keep containers/image temporary blob staging off the live ISO overlay.
-# Fisherman already places its scratch area on the mounted target root when /var
-# is space-constrained; point containers/storage tmpdir at that same disk-backed path.
-storage_conf="$tmpdir/storage.conf"
-storage_tmp="/mnt/fisherman-target/.fisherman-scratch/containers-tmp"
-if [[ -r /etc/containers/storage.conf ]]; then
-    cp /etc/containers/storage.conf "$storage_conf"
-elif [[ -r /usr/share/containers/storage.conf ]]; then
-    cp /usr/share/containers/storage.conf "$storage_conf"
-else
-    cat > "$storage_conf" <<'STORAGE'
-[storage]
-driver = "overlay"
-runroot = "/run/containers/storage"
-graphroot = "/var/lib/containers/storage"
-STORAGE
+# containers/image stages "big file" blobs under /var/tmp even when podman
+# graphroot/runroot are redirected and even when storage.conf tmpdir is changed.
+# On a Fedora live ISO that is the small RAM-backed overlay. Fisherman creates
+# /mnt/fisherman-target/.fisherman-scratch on the 15 GiB target root before it
+# calls podman pull, so place a podman wrapper beside the Fisherman binary. Its
+# tools/ directory is first on Fisherman's PATH. For pull only, bind the target
+# scratch over /var/tmp, then unmount it when podman exits.
+real_podman="$(command -v podman)"
+tools_dir="$(dirname "$fisherman_bin")/tools"
+mkdir -p "$tools_dir"
+cat > "$tools_dir/podman" <<WRAP
+#!/usr/bin/env bash
+set -euo pipefail
+real_podman="$real_podman"
+scratch="/mnt/fisherman-target/.fisherman-scratch"
+bound=0
+cleanup() {
+    if [[ "\$bound" -eq 1 ]]; then
+        umount /var/tmp >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT
+
+if printf '%s\n' "\$*" | grep -Eq '(^|[[:space:]])pull([[:space:]]|$)' && [[ -d "\$scratch" ]]; then
+    mkdir -p "\$scratch/var-tmp-pull"
+    mount --bind "\$scratch/var-tmp-pull" /var/tmp
+    bound=1
+    echo "# podman pull /var/tmp -> \$scratch/var-tmp-pull"
 fi
 
-STORAGE_CONF="$storage_conf" STORAGE_TMP="$storage_tmp" python3 - <<'PY'
-import os
-from pathlib import Path
-
-path = Path(os.environ["STORAGE_CONF"])
-tmp = os.environ["STORAGE_TMP"]
-lines = path.read_text().splitlines()
-
-storage_idx = next((i for i, line in enumerate(lines) if line.strip() == "[storage]"), None)
-if storage_idx is None:
-    lines += ["", "[storage]", f'tmpdir = "{tmp}"']
-else:
-    end = next((i for i in range(storage_idx + 1, len(lines))
-                if lines[i].strip().startswith("[") and lines[i].strip().endswith("]")), len(lines))
-    replaced = False
-    for i in range(storage_idx + 1, end):
-        if lines[i].strip().lower().startswith("tmpdir"):
-            lines[i] = f'tmpdir = "{tmp}"'
-            replaced = True
-            break
-    if not replaced:
-        lines.insert(end, f'tmpdir = "{tmp}"')
-
-path.write_text("\n".join(lines) + "\n")
-PY
-
-run_env=(env CONTAINERS_STORAGE_CONF="$storage_conf")
+"\$real_podman" "\$@"
+WRAP
+chmod 0755 "$tools_dir/podman"
 
 policy_env=()
 if [[ -e /usr/share/secureblue ]] || grep -qi secureblue /etc/os-release 2>/dev/null; then
