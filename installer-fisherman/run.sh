@@ -53,10 +53,15 @@ echo "The EFI System Partition can be REUSED or FORMATTED as FAT32."
 echo "No other partition and no partition table will be modified by Fisherman's customMounts path."
 echo
 
-read -r -p "KrisOS root partition (example /dev/nvme0n1p6): " root_part
-read -r -p "KrisOS /boot partition: " boot_part
-read -r -p "EFI System Partition to reuse: " esp_part
-read -r -p "KrisOS /home partition: " home_part
+root_part="${KRISOS_ROOT_PART:-}"
+boot_part="${KRISOS_BOOT_PART:-}"
+esp_part="${KRISOS_ESP_PART:-}"
+home_part="${KRISOS_HOME_PART:-}"
+
+[[ -n "$root_part" ]] || read -r -p "KrisOS root partition (example /dev/nvme0n1p6): " root_part
+[[ -n "$boot_part" ]] || read -r -p "KrisOS /boot partition: " boot_part
+[[ -n "$esp_part" ]] || read -r -p "EFI System Partition to reuse: " esp_part
+[[ -n "$home_part" ]] || read -r -p "KrisOS /home partition: " home_part
 
 parts=("$root_part" "$boot_part" "$esp_part" "$home_part")
 for part in "${parts[@]}"; do
@@ -86,7 +91,10 @@ for ((i=0; i<${#parts[@]}; i++)); do
 done
 
 echo
-read -r -p "EFI action: press Enter to REUSE it, or type FORMAT EFI to erase it as FAT32: " esp_choice
+esp_choice="${KRISOS_ESP_ACTION:-}"
+if [[ -z "$esp_choice" ]]; then
+    read -r -p "EFI action: press Enter to REUSE it, or type FORMAT EFI to erase it as FAT32: " esp_choice
+fi
 if [[ "$esp_choice" == "FORMAT EFI" ]]; then
     esp_fstype="fat32"
     esp_summary="FORMAT fat32"
@@ -114,12 +122,14 @@ read -r -p "Type INSTALL KRISOS to continue: " confirm
     exit 1
 }
 
-read -r -p "Username: " username
+username="${KRISOS_USERNAME:-}"
+fullname="${KRISOS_FULLNAME:-}"
+[[ -n "$username" ]] || read -r -p "Username: " username
 [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || {
     echo "Invalid username." >&2
     exit 1
 }
-read -r -p "Full name: " fullname
+[[ -n "$fullname" ]] || read -r -p "Full name: " fullname
 while true; do
     read -r -s -p "Password: " password
     echo
@@ -192,13 +202,14 @@ path.chmod(0o600)
 PY
 unset password password2 PASSWORD
 
-# secureblue and other hardened hosts may reject unsigned/unrecognized registries
-# through containers-policy.json. The KrisOS source is already pinned by an
-# immutable digest, so give only that exact remote digest permission to pull.
-# Local containers-storage/OCI transports are needed for Fisherman's staging.
-policy_home="$tmpdir/policy-home"
-mkdir -p "$policy_home/.config/containers"
-cat > "$policy_home/.config/containers/policy.json" <<POLICY
+# secureblue can reject registries through containers-policy.json.
+# Fedora's normal policy is left untouched.  On secureblue only, give the exact
+# immutable KrisOS digest permission in a temporary per-process policy.
+policy_env=()
+if [[ -e /usr/share/secureblue ]] || grep -qi secureblue /etc/os-release 2>/dev/null; then
+    policy_home="$tmpdir/policy-home"
+    mkdir -p "$policy_home/.config/containers"
+    cat > "$policy_home/.config/containers/policy.json" <<POLICY
 {
   "default": [{"type": "reject"}],
   "transports": {
@@ -214,9 +225,10 @@ cat > "$policy_home/.config/containers/policy.json" <<POLICY
   }
 }
 POLICY
-
+    policy_env=(env HOME="$policy_home" XDG_CONFIG_HOME="$policy_home/.config")
+fi
 echo
 echo "Starting standalone Fisherman with the pre-existing-partition recipe."
 echo "Automatic whole-disk partitioning is disabled by customMounts."
 echo
-"${priv[@]}" env HOME="$policy_home" XDG_CONFIG_HOME="$policy_home/.config" "$fisherman_bin" "$recipe_path"
+"${priv[@]}" "${policy_env[@]}" "$fisherman_bin" "$recipe_path"
