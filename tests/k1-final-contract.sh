@@ -3,9 +3,9 @@ set -euo pipefail
 
 # This branch owns only the installer. The installed OS is the exact signed main payload.
 source build_files/KrisOS-payload.lock
-test "$KRISOS_COMMIT" = "544535a6a21a1cb9f446c2d5b5497c6ab1e57eb2"
-test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:544535a6a21a1cb9f446c2d5b5497c6ab1e57eb2"
-test "$KRISOS_DIGEST" = "sha256:7a30064f3d979e9ff56ff80cf845b4fbdc10f5543988df9b73f967a348eee40e"
+test "$KRISOS_COMMIT" = "1b54db16a8208e226e65ec54653cd4880da38dd1"
+test "$KRISOS_TARGET_REF" = "ghcr.io/krism-eu/krisos:1b54db16a8208e226e65ec54653cd4880da38dd1"
+test "$KRISOS_DIGEST" = "sha256:5ed8b3a2f7a925abc9ac365b76e9f944957908517c3f429bc5091c56b1a64301"
 test "$KRISOS_KRISCC" = "0.7.9-1.fc44.x86_64"
 
 # Runtime sources and runtime workflows belong to main and must not drift here.
@@ -76,32 +76,28 @@ if grep -Eq '(^|[[:space:]])(systemctl|daemon-reload)([[:space:]]|$)' installer/
   exit 1
 fi
 
-# Fresh-target SELinux finalization must use the target policy after Anaconda
-# has created users and mutable /etc state. This is deliberately recursive and
-# force-restores the full context only because it runs on a fresh install.
-test -s installer/krisos-home-labels-finalize.ks
-grep -Fq 'COPY krisos-home-labels-finalize.ks /usr/share/anaconda/krisos-home-labels-finalize.ks' installer/Containerfile
-grep -Fq '/usr/share/anaconda/krisos-home-labels-finalize.ks \' installer/Containerfile
-grep -Fq "grep -c '^%post --nochroot --erroronfail$'" installer/Containerfile
-grep -Fq "grep -c '^%end$'" installer/Containerfile
-grep -Fq '%post --nochroot --erroronfail' installer/krisos-home-labels-finalize.ks
-grep -Fq 'sysroot=/mnt/sysroot' installer/krisos-home-labels-finalize.ks
-! grep -Fq '/mnt/sysimage' installer/krisos-home-labels-finalize.ks
-grep -Fq 'restorecon=/usr/sbin/restorecon' installer/krisos-home-labels-finalize.ks
-grep -Fq "grep -Fxq 'HOME=/var/home'" installer/krisos-home-labels-finalize.ks
-grep -Fq "grep -Eq '^SELINUX=enforcing$'" installer/krisos-home-labels-finalize.ks
-grep -Fq 'chroot "$sysroot" "$restorecon" -RFv /etc' installer/krisos-home-labels-finalize.ks
-grep -Fq -- 'chroot "$sysroot" "$restorecon" -RFv -- "/var/home/$user"' installer/krisos-home-labels-finalize.ks
-grep -Fq 'chroot "$sysroot" "$restorecon" -nRFv /etc' installer/krisos-home-labels-finalize.ks
-grep -Fq -- 'chroot "$sysroot" "$restorecon" -nRFv -- "/var/home/$user"' installer/krisos-home-labels-finalize.ks
-! grep -Fq 'repair-home-labels' installer/krisos-home-labels-finalize.ks
-if grep -Eq '(^|[[:space:]])(chcon|semanage|semodule)([[:space:]]|$)' installer/krisos-home-labels-finalize.ks; then
-  echo "ERROR: fresh-target finalizer must restore labels, not alter SELinux policy" >&2
-  exit 1
-fi
-
+# Network finalization is installer-only. Keep IPv6 available in the kernel,
+# but rewrite only Anaconda-created target NetworkManager keyfiles to IPv4-only.
+# The previous recursive home relabel must stay absent while validating the
+# native separate /home path.
+test -s installer/krisos-network-finalize.ks
+test ! -e installer/krisos-home-labels-finalize.ks
+grep -Fq 'COPY krisos-network-finalize.ks /usr/share/anaconda/krisos-network-finalize.ks' installer/Containerfile
+grep -Fq '/usr/share/anaconda/krisos-network-finalize.ks \' installer/Containerfile
+grep -Fq "grep -c -x '%post --nochroot --erroronfail'" installer/Containerfile
+grep -Fq "grep -c -x '%end'" installer/Containerfile
+grep -Fq '%post --nochroot --erroronfail' installer/krisos-network-finalize.ks
+grep -Fq 'sysroot=/mnt/sysroot' installer/krisos-network-finalize.ks
+! grep -Fq '/mnt/sysimage' installer/krisos-network-finalize.ks
+grep -Fq 'profiles="$sysroot/etc/NetworkManager/system-connections"' installer/krisos-network-finalize.ks
+grep -Fq 'chroot "$sysroot" /usr/bin/nmcli --offline connection modify ipv6.method disabled \' installer/krisos-network-finalize.ks
+grep -Fq 'install -m 0600 -o root -g root "$tmp" "$profile"' installer/krisos-network-finalize.ks
+grep -Fq 'chroot "$sysroot" /usr/sbin/restorecon -F -- "/etc/NetworkManager/system-connections/$name"' installer/krisos-network-finalize.ks
+grep -Fq "grep -Fq 'method=disabled' \"$profile\"" installer/krisos-network-finalize.ks
+! grep -Fq 'ipv6.disable=1' installer/krisos-network-finalize.ks
+! grep -Eq '(^|[[:space:]])(chcon|semanage|semodule)([[:space:]]|$)' installer/krisos-network-finalize.ks
 # Pin the integration contract to the exact main source behind the payload:
-# main owns /var/home policy/defaults; the installer only reconciles fresh state.
+# main owns /var/home policy/defaults; the installer deliberately does not relabel home.
 git fetch --no-tags origin "$KRISOS_COMMIT"
 main_container="$(mktemp)"
 trap 'rm -f "$main_container"' EXIT
@@ -115,7 +111,7 @@ grep -Fq "grep -Eq '^SELINUX=enforcing$' /etc/selinux/config" "$main_container"
 
 # Preserve the approved interactive partitioning contract documented for K1.
 grep -Fq '/boot/efi' installer/README.md
-grep -Fq '/var/home' installer/README.md
+grep -Fq 'dedicated ext4 partition -> `/home`' installer/README.md
 grep -Fq 'administrator' installer/README.md
 grep -Fq 'No swap partition' installer/README.md
 
