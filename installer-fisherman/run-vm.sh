@@ -9,6 +9,7 @@ export KRISOS_HOME_PART=/dev/vda2
 export KRISOS_ESP_ACTION="FORMAT EFI"
 export KRISOS_USERNAME=kris
 export KRISOS_FULLNAME=kris
+export KRISOS_GENERIC_IMAGE=1
 
 echo "KrisOS VM profile:"
 echo "  /       -> /dev/vda1 (FORMAT ext4)"
@@ -16,6 +17,7 @@ echo "  /boot   -> /dev/vda3 (FORMAT ext4)"
 echo "  EFI     -> /dev/vda4 (FORMAT FAT32)"
 echo "  /home   -> /dev/vda2 (FORMAT ext4)"
 echo "  user    -> kris"
+echo "  boot    -> generic-image mode"
 echo
 echo "The installer will still require INSTALL KRISOS and ask for the password."
 echo
