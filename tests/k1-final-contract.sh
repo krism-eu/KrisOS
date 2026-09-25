@@ -32,6 +32,7 @@ grep -Fq "grep -Fxq 'Alias=autovt@.service'" installer/Containerfile
 grep -Fq "grep -Fxq 'ReserveVT=2'" installer/Containerfile
 grep -Fq "grep -Fxq 'StandardInput=null'" installer/Containerfile
 grep -Fq 'systemctl enable anaconda-shell@.service' installer/Containerfile
+grep -Fq 'KrisOS workaround: Anaconda 45.25 invokes shadow-utils chage with -R' installer/Containerfile
 test ! -e installer/anaconda-shell.conf
 ! grep -Fq 'ln -s /usr/lib/systemd/system/anaconda-shell@.service' installer/Containerfile
 grep -Fq "'graphical'" installer/Containerfile
@@ -53,7 +54,8 @@ if grep -Eq '(^|[[:space:]])(selinux=0|enforcing=1)([[:space:]]|$)' installer/is
 fi
 grep -Fq "'selinux --enforcing'" installer/Containerfile
 
-# fstab finalization is installer-only and must be narrowly idempotent.
+# fstab finalization is installer-only and removes the redundant physical-root
+# entry that makes systemd-remount-fs fail against a composefs /.
 test -s installer/krisos-fstab-finalize.ks
 grep -Fq 'COPY krisos-fstab-finalize.ks /usr/share/anaconda/krisos-fstab-finalize.ks' installer/Containerfile
 grep -Fq '/usr/share/anaconda/krisos-fstab-finalize.ks \' installer/Containerfile
@@ -64,17 +66,19 @@ grep -Fq 'fstab="$sysroot/etc/fstab"' installer/krisos-fstab-finalize.ks
 ! grep -Fq '/mnt/sysimage' installer/krisos-fstab-finalize.ks
 grep -Fq "anaconda_stamp='Created by anaconda'" installer/krisos-fstab-finalize.ks
 grep -Fq "bootc_stamp='Updated by bootc-fstab-edit.service'" installer/krisos-fstab-finalize.ks
-grep -Fq 'opts[i] == "ro"' installer/krisos-fstab-finalize.ks
-grep -Fq 'root_count="$(awk' installer/krisos-fstab-finalize.ks
-grep -Fq 'chroot "$sysroot" /usr/bin/bootc internals fixup-etc-fstab' installer/krisos-fstab-finalize.ks
-grep -Fq 'root_is_ro' installer/krisos-fstab-finalize.ks
+grep -Fq 'root_count_before=' installer/krisos-fstab-finalize.ks
+grep -Fq '$2 == "/" { next }' installer/krisos-fstab-finalize.ks
+grep -Fq 'root_count_after=' installer/krisos-fstab-finalize.ks
+! grep -Fq 'bootc internals fixup-etc-fstab' installer/krisos-fstab-finalize.ks
+! grep -Fq 'root_is_ro' installer/krisos-fstab-finalize.ks
 if grep -Eq '(^|[[:space:]])(systemctl|daemon-reload)([[:space:]]|$)' installer/krisos-fstab-finalize.ks; then
-  echo "ERROR: fstab finalizer must not add a runtime daemon-reload workaround" >&2
+  echo "ERROR: fstab finalizer must not add a runtime systemd workaround" >&2
   exit 1
 fi
 
-# Fresh-home SELinux finalization must reuse main's validated helper and only
-# apply when its non-destructive preview reports a real mismatch.
+# Fresh-target SELinux finalization must use the target policy after Anaconda
+# has created users and mutable /etc state. This is deliberately recursive and
+# force-restores the full context only because it runs on a fresh install.
 test -s installer/krisos-home-labels-finalize.ks
 grep -Fq 'COPY krisos-home-labels-finalize.ks /usr/share/anaconda/krisos-home-labels-finalize.ks' installer/Containerfile
 grep -Fq '/usr/share/anaconda/krisos-home-labels-finalize.ks \' installer/Containerfile
@@ -83,37 +87,31 @@ grep -Fq "grep -c '^%end$'" installer/Containerfile
 grep -Fq '%post --nochroot --erroronfail' installer/krisos-home-labels-finalize.ks
 grep -Fq 'sysroot=/mnt/sysroot' installer/krisos-home-labels-finalize.ks
 ! grep -Fq '/mnt/sysimage' installer/krisos-home-labels-finalize.ks
-grep -Fq 'helper=/usr/libexec/krisos/repair-home-labels' installer/krisos-home-labels-finalize.ks
+grep -Fq 'restorecon=/usr/sbin/restorecon' installer/krisos-home-labels-finalize.ks
 grep -Fq "grep -Fxq 'HOME=/var/home'" installer/krisos-home-labels-finalize.ks
 grep -Fq "grep -Eq '^SELINUX=enforcing$'" installer/krisos-home-labels-finalize.ks
-grep -Fq 'preview="$(chroot "$sysroot" "$helper" "$user")"' installer/krisos-home-labels-finalize.ks
-grep -Fq 'chroot "$sysroot" "$helper" --apply "$user"' installer/krisos-home-labels-finalize.ks
-grep -Fq 'test -z "$(chroot "$sysroot" "$helper" "$user")"' installer/krisos-home-labels-finalize.ks
-if grep -Eq 'restorecon[[:space:]].*(-R|-F)|(^|[[:space:]])(chcon|semanage|semodule)([[:space:]]|$)' installer/krisos-home-labels-finalize.ks; then
-  echo "ERROR: home-label finalizer must not broaden SELinux policy or relabel recursively" >&2
+grep -Fq 'chroot "$sysroot" "$restorecon" -RFv /etc' installer/krisos-home-labels-finalize.ks
+grep -Fq -- 'chroot "$sysroot" "$restorecon" -RFv -- "/var/home/$user"' installer/krisos-home-labels-finalize.ks
+grep -Fq 'chroot "$sysroot" "$restorecon" -nRFv /etc' installer/krisos-home-labels-finalize.ks
+grep -Fq -- 'chroot "$sysroot" "$restorecon" -nRFv -- "/var/home/$user"' installer/krisos-home-labels-finalize.ks
+! grep -Fq 'repair-home-labels' installer/krisos-home-labels-finalize.ks
+if grep -Eq '(^|[[:space:]])(chcon|semanage|semodule)([[:space:]]|$)' installer/krisos-home-labels-finalize.ks; then
+  echo "ERROR: fresh-target finalizer must restore labels, not alter SELinux policy" >&2
   exit 1
 fi
 
 # Pin the integration contract to the exact main source behind the payload:
-# main owns /var/home defaults/policy and the conservative four-path helper.
+# main owns /var/home policy/defaults; the installer only reconciles fresh state.
 git fetch --no-tags origin "$KRISOS_COMMIT"
 main_container="$(mktemp)"
-main_helper="$(mktemp)"
-trap 'rm -f "$main_container" "$main_helper"' EXIT
+trap 'rm -f "$main_container"' EXIT
 git show "$KRISOS_COMMIT:Containerfile" > "$main_container"
-git show "$KRISOS_COMMIT:scripts/repair-home-labels.sh" > "$main_helper"
 grep -Fq "sed -ri 's|^HOME=.*$|HOME=/var/home|' /etc/default/useradd" "$main_container"
 grep -Fq 'semodule -B' "$main_container"
 grep -Fq 'matchpathcon -n /var/home/kris' "$main_container"
 grep -Fq 'matchpathcon -n /var/home/kris/.config' "$main_container"
 grep -Fq 'matchpathcon -n /var/home/kris/.local/share' "$main_container"
 grep -Fq "grep -Eq '^SELINUX=enforcing$' /etc/selinux/config" "$main_container"
-grep -Fq 'COPY scripts/repair-home-labels.sh /usr/libexec/krisos/repair-home-labels' "$main_container"
-grep -Fq '"$resolved" "$resolved/.config" "$resolved/.local" "$resolved/.local/share"' "$main_helper"
-if grep -Eq 'restorecon[[:space:]].*(-R|-F)' "$main_helper"; then
-  echo "ERROR: main home-label helper became recursive or force-relabeling" >&2
-  exit 1
-fi
 
 # Preserve the approved interactive partitioning contract documented for K1.
 grep -Fq '/boot/efi' installer/README.md
