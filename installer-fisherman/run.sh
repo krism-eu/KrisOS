@@ -10,13 +10,13 @@ default_target="ghcr.io/krism-eu/krisos:4be27021c77f3942d896e5a59baeb3af1e78e3ed
 image="${KRISOS_IMAGE:-$default_image}"
 target="${KRISOS_TARGET_REF:-$default_target}"
 
-# Immutable GitHub release asset published 2026-09-25.
-# It contains tuna-os/fisherman commit 60f672ff376f079dd88b66d3058aed32bedfdc3d.
-bundle_url="https://api.github.com/repos/tuna-os/bootc-installer/releases/assets/588538088"
-bundle_sha256="82e044c2a49c58456bfdb4d4e333a965abdf4b012dbb91784ff37a49708dd4b2"
-app_id="org.bootcinstaller.Installer.Devel"
+# Standalone Fisherman avoids pulling the GNOME Flatpak runtime on live media.
+# v0.4.0 contains the customMounts/manual-layout and bootc-aware user-home paths
+# used by this recipe.
+fisherman_url="https://github.com/tuna-os/fisherman/releases/download/v0.4.0/fisherman_0.4.0_linux_amd64.tar.gz"
+fisherman_sha256="cfe7f75f684ca4661db6aa201b557104e7d76cb6216395f2f8a8eca7a2a0c7ba"
 
-for cmd in curl flatpak python3 sha256sum lsblk blkid findmnt sfdisk mkfs.fat mkfs.ext4 skopeo podman; do
+for cmd in curl tar python3 sha256sum lsblk blkid findmnt sfdisk mkfs.fat mkfs.ext4 skopeo podman; do
     command -v "$cmd" >/dev/null 2>&1 || {
         echo "Missing required command: $cmd" >&2
         exit 1
@@ -138,12 +138,16 @@ chmod 0700 "$cfgdir"
 recipe_path="$cfgdir/autoinstall.json"
 trap 'rm -rf "$tmpdir"; rm -f "$recipe_path"' EXIT
 
-echo "Fetching pinned TunaOS bootc-installer..."
+echo "Fetching pinned Fisherman v0.4.0..."
 curl -fL --retry 3 --retry-delay 2 \
-    -H "Accept: application/octet-stream" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    -o "$tmpdir/installer.flatpak" "$bundle_url"
-printf '%s  %s\n' "$bundle_sha256" "$tmpdir/installer.flatpak" | sha256sum -c -
+    -o "$tmpdir/fisherman.tar.gz" "$fisherman_url"
+printf '%s  %s\n' "$fisherman_sha256" "$tmpdir/fisherman.tar.gz" | sha256sum -c -
+tar -xzf "$tmpdir/fisherman.tar.gz" -C "$tmpdir"
+fisherman_bin="$(find "$tmpdir" -maxdepth 2 -type f -name fisherman -print -quit)"
+[[ -n "$fisherman_bin" && -x "$fisherman_bin" ]] || {
+    echo "Pinned Fisherman archive did not contain an executable fisherman binary" >&2
+    exit 1
+}
 
 ROOT_PART="$root_part" BOOT_PART="$boot_part" ESP_PART="$esp_part" ESP_FSTYPE="$esp_fstype" HOME_PART="$home_part" \
 IMAGE="$image" TARGET="$target" USERNAME="$username" FULLNAME="$fullname" PASSWORD="$password" \
@@ -186,10 +190,9 @@ path.chmod(0o600)
 PY
 unset password password2 PASSWORD
 
-"${priv[@]}" flatpak install --bundle -y "$tmpdir/installer.flatpak"
 
 echo
-echo "Starting Fisherman with the pre-existing-partition recipe."
+echo "Starting standalone Fisherman with the pre-existing-partition recipe."
 echo "Automatic whole-disk partitioning is disabled by customMounts."
 echo
-flatpak run "$app_id" --autoinstall "$recipe_path"
+"${priv[@]}" "$fisherman_bin" "$recipe_path"
