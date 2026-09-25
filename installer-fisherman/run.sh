@@ -5,7 +5,7 @@ set -euo pipefail
 # bootc-installer/Fisherman backend.  This path never repartitions a whole disk:
 # customMounts makes Fisherman skip its automatic partitioning code.
 
-default_image="ghcr.io/krism-eu/krisos:1b54db16a8208e226e65ec54653cd4880da38dd1"
+default_image="ghcr.io/krism-eu/krisos:4be27021c77f3942d896e5a59baeb3af1e78e3ed"
 image="${KRISOS_IMAGE:-$default_image}"
 target="${KRISOS_TARGET_REF:-$image}"
 
