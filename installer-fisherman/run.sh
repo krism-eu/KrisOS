@@ -16,12 +16,21 @@ bundle_url="https://api.github.com/repos/tuna-os/bootc-installer/releases/assets
 bundle_sha256="82e044c2a49c58456bfdb4d4e333a965abdf4b012dbb91784ff37a49708dd4b2"
 app_id="org.bootcinstaller.Installer.Devel"
 
-for cmd in curl flatpak python3 sha256sum sudo lsblk blkid findmnt sfdisk mkfs.fat mkfs.ext4 skopeo podman; do
+for cmd in curl flatpak python3 sha256sum lsblk blkid findmnt sfdisk mkfs.fat mkfs.ext4 skopeo podman; do
     command -v "$cmd" >/dev/null 2>&1 || {
         echo "Missing required command: $cmd" >&2
         exit 1
     }
 done
+
+if command -v sudo >/dev/null 2>&1; then
+    priv=(sudo)
+elif command -v run0 >/dev/null 2>&1; then
+    priv=(run0)
+else
+    echo "Missing privilege helper: need sudo or run0" >&2
+    exit 1
+fi
 
 case "$image" in
     ghcr.io/krism-eu/krisos:*|ghcr.io/krism-eu/krisos@sha256:*) ;;
@@ -37,7 +46,7 @@ lsblk -o NAME,PATH,SIZE,FSTYPE,LABEL,PARTLABEL,MOUNTPOINTS
 echo
 echo "Select ONLY the partitions reserved for KrisOS."
 echo "Root, /boot and /home will be FORMATTED as ext4."
-echo "The EFI System Partition will be REUSED WITHOUT FORMATTING."
+echo "The EFI System Partition can be REUSED or FORMATTED as FAT32."
 echo "No other partition and no partition table will be modified by Fisherman's customMounts path."
 echo
 
@@ -73,17 +82,26 @@ for ((i=0; i<${#parts[@]}; i++)); do
     done
 done
 
-esp_type="$(sudo blkid -s TYPE -o value "$esp_part" 2>/dev/null || true)"
-[[ "$esp_type" == "vfat" ]] || {
-    echo "EFI partition must already contain a FAT/VFAT filesystem; got: ${esp_type:-unknown}" >&2
-    exit 1
-}
+echo
+read -r -p "EFI action: press Enter to REUSE it, or type FORMAT EFI to erase it as FAT32: " esp_choice
+if [[ "$esp_choice" == "FORMAT EFI" ]]; then
+    esp_fstype="fat32"
+    esp_summary="FORMAT fat32"
+else
+    esp_type="$("${priv[@]}" blkid -s TYPE -o value "$esp_part" 2>/dev/null || true)"
+    [[ "$esp_type" == "vfat" ]] || {
+        echo "EFI partition must contain FAT/VFAT when reusing it; got: ${esp_type:-unknown}" >&2
+        exit 1
+    }
+    esp_fstype="unformatted"
+    esp_summary="KEEP   vfat "
+fi
 
 echo
 echo "DESTRUCTIVE TARGET SUMMARY"
 echo "  FORMAT ext4  root : $root_part"
 echo "  FORMAT ext4  /boot: $boot_part"
-echo "  KEEP   vfat  ESP  : $esp_part"
+printf '  %-12s ESP  : %s\n' "$esp_summary" "$esp_part"
 echo "  FORMAT ext4  /home: $home_part"
 echo "  IMAGE              : $image"
 echo
@@ -126,7 +144,7 @@ curl -fL --retry 3 --retry-delay 2 \
     -o "$tmpdir/installer.flatpak" "$bundle_url"
 printf '%s  %s\n' "$bundle_sha256" "$tmpdir/installer.flatpak" | sha256sum -c -
 
-ROOT_PART="$root_part" BOOT_PART="$boot_part" ESP_PART="$esp_part" HOME_PART="$home_part" \
+ROOT_PART="$root_part" BOOT_PART="$boot_part" ESP_PART="$esp_part" ESP_FSTYPE="$esp_fstype" HOME_PART="$home_part" \
 IMAGE="$image" TARGET="$target" USERNAME="$username" FULLNAME="$fullname" PASSWORD="$password" \
 python3 - "$recipe_path" <<'PY'
 import json
@@ -152,7 +170,7 @@ recipe = {
     "customMounts": [
         {"partition": os.environ["ROOT_PART"], "target": "/", "fstype": "ext4"},
         {"partition": os.environ["BOOT_PART"], "target": "/boot", "fstype": "ext4"},
-        {"partition": os.environ["ESP_PART"], "target": "/boot/efi", "fstype": "unformatted"},
+        {"partition": os.environ["ESP_PART"], "target": "/boot/efi", "fstype": os.environ["ESP_FSTYPE"]},
         {"partition": os.environ["HOME_PART"], "target": "/home", "fstype": "ext4"},
     ],
     "user": {
@@ -167,7 +185,7 @@ path.chmod(0o600)
 PY
 unset password password2 PASSWORD
 
-sudo flatpak install --bundle -y "$tmpdir/installer.flatpak"
+"${priv[@]}" flatpak install --bundle -y "$tmpdir/installer.flatpak"
 
 echo
 echo "Starting Fisherman with the pre-existing-partition recipe."
