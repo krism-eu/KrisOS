@@ -75,6 +75,10 @@ run_check "Discover PackageKit backend omitted" bash -c '! rpm -q plasma-discove
 run_check "PackageKit omitted" bash -c '! rpm -q PackageKit >/dev/null 2>&1'
 run_check "Cockpit installed" rpm -q cockpit
 run_check "Cockpit socket disabled by default" bash -c 'systemctl is-enabled cockpit.socket 2>&1 | grep -qx disabled'
+run_check "NetworkManager wait-online disabled" bash -c 'systemctl is-enabled NetworkManager-wait-online.service 2>&1 | grep -qx disabled'
+run_check "LLMNR disabled" grep -Fxq 'LLMNR=no' /usr/lib/systemd/resolved.conf.d/60-krisos.conf
+run_check "mDNS resolver disabled" grep -Fxq 'MulticastDNS=no' /usr/lib/systemd/resolved.conf.d/60-krisos.conf
+run_check "Public firewall has no discovery or DHCPv6 services" bash -c '! firewall-offline-cmd --zone=public --list-services | tr " " "\n" | grep -Eq "^(ssh|mdns|dhcpv6-client)$"'
 run_check "DNF weak dependencies disabled" grep -Fxq 'install_weak_deps=False' /etc/dnf/libdnf5.conf.d/90-krisos.conf
 
 run_check "useradd default points to /var/home" grep -Fxq 'HOME=/var/home' /etc/default/useradd
