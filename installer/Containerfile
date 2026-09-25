@@ -35,6 +35,19 @@ RUN dnf install -qy --setopt=install_weak_deps=False \
     && grep -Fxq 'StandardInput=null' /usr/lib/systemd/system/anaconda-pre.service \
     && dnf clean all
 
+# KrisOS workaround: Anaconda 45.25 invokes shadow-utils chage with -R
+# against /mnt/sysroot. In the real bootc install audit this enters the target
+# after libselinux was initialized in the live environment and chage aborts
+# with avc_context_to_sid_raw: Assertion 'avc_running' failed. Keep Anaconda's
+# account semantics, but use shadow-utils' non-chroot prefix mode for chage.
+# The live installer remains SELinux-enabled/permissive and the target remains
+# SELinux enforcing.
+RUN python3 -c 'from pathlib import Path; ps=list(Path("/usr/lib64").glob("python*/site-packages/pyanaconda/core/users.py")); assert len(ps)==1, ps; p=ps[0]; s=p.read_text(); old="util.execWithRedirect(\"chage\", rootargs + [\"-d\", \"\", username])"; new="util.execWithRedirect(\"chage\", ([\"-P\", root] if root != \"/\" else []) + [\"-d\", \"\", username])"; assert s.count(old)==1, old; p.write_text(s.replace(old,new)); assert new in p.read_text()' && \
+    users_py="$(find /usr/lib64 -path '*/site-packages/pyanaconda/core/users.py' -print -quit)" && \
+    test -n "$users_py" && \
+    grep -Fq 'util.execWithRedirect("chage", (["-P", root] if root != "/" else []) + ["-d", "", username])' "$users_py" && \
+    ! grep -Fq 'util.execWithRedirect("chage", rootargs + ["-d", "", username])' "$users_py"
+
 # Fedora 43+ bootc installer images need the EFI tree materialized here.
 RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
 
