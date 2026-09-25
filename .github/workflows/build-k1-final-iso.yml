@@ -172,8 +172,8 @@ jobs:
             test "$(rpm -q --qf "%{VERSION}-%{RELEASE}" anaconda-install-img-deps)" = "45.25-1.fc45"
             users_py="$(find /usr/lib64 -path "*/site-packages/pyanaconda/core/users.py" -print -quit)"
             test -n "$users_py"
-            grep -Fq 'util.execWithRedirect("chage", (["-P", root] if root != "/" else []) + ["-d", "", username])' "$users_py"
-            ! grep -Fq 'util.execWithRedirect("chage", rootargs + ["-d", "", username])' "$users_py"
+            grep -Fq "util.execWithRedirect(\"chage\", ([\"-P\", root] if root != \"/\" else []) + [\"-d\", \"\", username])" "$users_py"
+            ! grep -Fq "util.execWithRedirect(\"chage\", rootargs + [\"-d\", \"\", username])" "$users_py"
             grep -Fxq "Alias=autovt@.service" /usr/lib/systemd/system/anaconda-shell@.service
             grep -Fxq "DefaultInstance=tty2" /usr/lib/systemd/system/anaconda-shell@.service
             grep -Fxq "ReserveVT=2" /usr/lib/systemd/logind.conf.d/anaconda-logind.conf
