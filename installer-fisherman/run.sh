@@ -179,6 +179,7 @@ recipe = {
     "selinuxDisabled": False,
     "unifiedStorage": False,
     "composeFsBackend": False,
+    "genericImage": os.environ.get("KRISOS_GENERIC_IMAGE", "0") == "1",
     "bootloader": "grub2",
     "imageType": "bootc",
     "hostname": "krisos",
